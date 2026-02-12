@@ -1,8 +1,3 @@
-"""
-뉴스 API 기반 수집 (프로그래밍 호출용)
-- 끊겼던 부분부터 이어서 수집
-- news_service, crawl_daum_list에서 공통 사용
-"""
 import csv
 import html
 import json
@@ -23,7 +18,6 @@ FIELDNAMES = ["title", "link", "description", "pubDate", "keyword"]
 
 
 def _load_keywords() -> list:
-    """crawl_keywords.json에서 키워드 로드. 종목명/기업명 포함 전부 사용 (제외 없음)."""
     p = DATA_DIR / KEYWORDS_FILE
     if p.exists():
         try:
@@ -62,7 +56,6 @@ def _ensure_output_file():
 
 
 def _clean_text(text: str) -> str:
-    """HTML 엔티티 제거 (&quot;, &amp; 등)"""
     if not text:
         return ""
     s = html.unescape(str(text))
@@ -143,10 +136,6 @@ def run_crawl_api(
     keywords_limit: int = 0,
     checkpoint_every: int = 100,
 ) -> dict:
-    """
-    API 기반 뉴스 수집 (끊겼던 부분부터 이어서)
-    Returns: {total_saved, added_this_run, rate_limited, message, error}
-    """
     _ensure_output_file()
     keywords = _load_keywords()
     if keywords_limit > 0:

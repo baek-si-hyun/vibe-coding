@@ -1,8 +1,3 @@
-"""
-뉴스 검색 API 모듈 (네이버/카카오)
-- 네이버: 뉴스 검색 API (https://openapi.naver.com/v1/search/news.json)
-- 카카오: 웹 검색 API (https://dapi.kakao.com/v2/search/web) - 뉴스 대체
-"""
 import re
 import time
 from typing import Dict
@@ -13,14 +8,12 @@ from config import NAVER_CLIENT_ID, NAVER_CLIENT_SECRET, KAKAO_REST_API_KEY
 
 
 def _strip_html(text: str) -> str:
-    """<b>, </b> 등 HTML 태그 제거"""
     if not text:
         return ""
     return re.sub(r"<[^>]+>", "", text).strip()
 
 
 def _parse_pubdate_naver(pub_date: str) -> str:
-    """RFC 2822 -> YYYY-MM-DD"""
     if not pub_date:
         return ""
     try:
@@ -32,7 +25,6 @@ def _parse_pubdate_naver(pub_date: str) -> str:
 
 
 def _parse_pubdate_kakao(dt_str: str) -> str:
-    """ISO 8601 -> YYYY-MM-DD"""
     if not dt_str:
         return ""
     m = re.search(r"(\d{4})-(\d{2})-(\d{2})", dt_str)
@@ -42,10 +34,8 @@ def _parse_pubdate_kakao(dt_str: str) -> str:
 
 
 def _extract_press_from_url(url: str) -> str:
-    """URL에서 언론사 도메인 추출 (예: yonhapnews -> 연합뉴스)"""
     if not url:
         return ""
-    # news.daum.net, app.yonhapnews.co.kr 등
     m = re.search(r"([a-z0-9-]+)\.(daum|naver|yonhap|hani|donga|chosun|joongang|mt|mk|hankyung|etnews|yna|khan|hani|sedaily)\.(net|co\.kr|com)", url, re.I)
     if m:
         return m.group(1)
@@ -58,10 +48,6 @@ def fetch_naver_news(
     start: int = 1,
     sort: str = "date",
 ) -> Dict:
-    """
-    네이버 뉴스 검색 API 호출
-    Returns: {"items": [...], "total": N, "error": ..., "rate_limited": bool}
-    """
     if not NAVER_CLIENT_ID or not NAVER_CLIENT_SECRET:
         return {"items": [], "total": 0, "error": "NAVER_CLIENT_ID/SECRET 미설정"}
 
@@ -83,7 +69,6 @@ def fetch_naver_news(
         resp.raise_for_status()
         data = resp.json()
     except httpx.HTTPStatusError as e:
-        # 429 Too Many Requests 또는 403 API 권한 없음(호출한도)
         rate_limited = e.response.status_code in (429, 403)
         err_msg = str(e)
         if rate_limited or "limit" in err_msg.lower() or "한도" in err_msg or "quota" in err_msg.lower():
@@ -116,10 +101,6 @@ def fetch_kakao_web(
     page: int = 1,
     sort: str = "recency",
 ) -> Dict:
-    """
-    카카오 웹 검색 API (뉴스 대체용)
-    Returns: {"items": [...], "total": N, "error": ...}
-    """
     if not KAKAO_REST_API_KEY:
         return {"items": [], "total": 0, "error": "KAKAO_REST_API_KEY 미설정"}
 
@@ -166,9 +147,8 @@ MIN_DATE_DEFAULT = "2010-01-01"
 
 
 def _is_valid_date(pub_date: str, min_date: str) -> bool:
-    """pubDate가 min_date 이상이면 True (2010년 이전 제외)"""
     if not pub_date or len(pub_date) < 10:
-        return False  # 날짜 없거나 형식 이상 → 제외
+        return False
     return pub_date >= min_date
 
 
@@ -179,12 +159,6 @@ def fetch_news_api(
     min_date: str = MIN_DATE_DEFAULT,
     max_pages: int = 0,
 ) -> Dict:
-    """
-    통합 API 호출: source에 따라 네이버/카카오 사용
-    없을 때까지 페이지 반복. min_date(기본 2010-01-01) 이전 기사 제외.
-    max_pages: 0이면 끝까지, >0이면 해당 페이지 수에서 중단 (테스트용)
-    호출 제한 시: 수집된 항목까지 반환 + rate_limited=True
-    """
     all_items = []
     display = 100 if source == "naver" else 10
     per_page = 50 if source == "daum" else 100
@@ -195,11 +169,11 @@ def fetch_news_api(
             break
         if source == "naver":
             start = page * display + 1
-            if start > 1000:  # 네이버 start 최대 1000
+            if start > 1000:
                 break
             result = fetch_naver_news(query, display=min(display, 1000 - start + 1), start=start, sort="date")
         elif source == "daum":
-            if page >= 50:  # 카카오 page 최대 50
+            if page >= 50:
                 break
             result = fetch_kakao_web(query, size=per_page, page=page + 1, sort="recency")
         else:

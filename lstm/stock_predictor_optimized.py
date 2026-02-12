@@ -1,7 +1,3 @@
-"""
-최적화된 삼성전자 주가 예측 모델 (LSTM + CNN)
-성능 최적화를 위한 다양한 기법 적용
-"""
 import os
 from pathlib import Path
 from tensorflow.keras.layers import (
@@ -22,7 +18,6 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 
 def build_train_data(data, t_step, n_jump=1):
-    """2차원 배열의 feature 데이터로 LSTM 학습 데이터를 만든다."""
     n_data = data.shape[0]
     n_feat = data.shape[1]
 
@@ -37,7 +32,6 @@ def build_train_data(data, t_step, n_jump=1):
 
 
 def load_and_prepare_data(data_path, test_size=0.2):
-    """주가 데이터를 로드하고 전처리한다."""
     data = pd.read_csv(data_path, encoding='euc-kr')
     last_price = list(data['종가'])[-1]
     
@@ -45,7 +39,6 @@ def load_and_prepare_data(data_path, test_size=0.2):
     df = df.drop(['날짜', '종가', '전일비', '개인누적', '기관누적', '외국인누적', 
                   '금투누적', '투신누적', '연기금누적', '국가지자체'], axis=1)
     
-    # feature 표준화 (각 컬럼별로 저장)
     feature_stats = {}
     for col in df.columns:
         feature_stats[col] = {
@@ -53,31 +46,17 @@ def load_and_prepare_data(data_path, test_size=0.2):
             'std': df[col].std()
         }
     
-    # 등락율 통계 저장 (복원용)
     rtn_mean = df['등락율'].mean()
     rtn_std = df['등락율'].std()
     
-    # 표준화
     df_normalized = (df - df.mean()) / df.std()
     
     return df_normalized, last_price, rtn_mean, rtn_std, feature_stats
 
 
 def create_optimized_model(t_step, n_feat, n_hidden=256, dropout_rate=0.3):
-    """
-    최적화된 LSTM + CNN 하이브리드 모델
-    
-    개선 사항:
-    - Bidirectional LSTM 사용
-    - Batch Normalization 추가
-    - 더 깊은 네트워크 구조
-    - 정규화 (L1/L2) 적용
-    - Attention 메커니즘 고려
-    """
-    # LSTM 브랜치 (Bidirectional)
     x_lstm_input = Input(shape=(t_step, n_feat), name='lstm_input')
     
-    # 첫 번째 Bidirectional LSTM
     lstm1 = Bidirectional(
         LSTM(n_hidden, return_sequences=True, 
              kernel_regularizer=l1_l2(l1=1e-5, l2=1e-4)),
@@ -86,7 +65,6 @@ def create_optimized_model(t_step, n_feat, n_hidden=256, dropout_rate=0.3):
     lstm1 = BatchNormalization()(lstm1)
     lstm1 = Dropout(dropout_rate)(lstm1)
     
-    # 두 번째 Bidirectional LSTM
     lstm2 = Bidirectional(
         LSTM(n_hidden // 2, return_sequences=False,
              kernel_regularizer=l1_l2(l1=1e-5, l2=1e-4)),
@@ -95,10 +73,8 @@ def create_optimized_model(t_step, n_feat, n_hidden=256, dropout_rate=0.3):
     lstm2 = BatchNormalization()(lstm2)
     lstm2 = Dropout(dropout_rate)(lstm2)
     
-    # CNN 브랜치 (개선된 구조)
     x_cnn_input = Input(shape=(t_step, n_feat, 1), name='cnn_input')
     
-    # 첫 번째 Conv2D
     conv1 = Conv2D(
         filters=32, 
         kernel_size=(5, 3), 
@@ -111,7 +87,6 @@ def create_optimized_model(t_step, n_feat, n_hidden=256, dropout_rate=0.3):
     conv1 = BatchNormalization()(conv1)
     conv1 = MaxPooling2D(pool_size=(2, 2), name='maxpool_1')(conv1)
     
-    # 두 번째 Conv2D
     conv2 = Conv2D(
         filters=64,
         kernel_size=(3, 3),
@@ -124,10 +99,8 @@ def create_optimized_model(t_step, n_feat, n_hidden=256, dropout_rate=0.3):
     conv2 = BatchNormalization()(conv2)
     conv2 = MaxPooling2D(pool_size=(2, 2), name='maxpool_2')(conv2)
     
-    # Flatten
     x_flat = Flatten(name='flatten')(conv2)
     
-    # Dense layers
     cnn_dense1 = Dense(n_hidden, activation='relu', 
                       kernel_regularizer=l1_l2(l1=1e-5, l2=1e-4),
                       name='cnn_dense1')(x_flat)
@@ -140,12 +113,10 @@ def create_optimized_model(t_step, n_feat, n_hidden=256, dropout_rate=0.3):
     cnn_dense2 = BatchNormalization()(cnn_dense2)
     cnn_dense2 = Dropout(dropout_rate)(cnn_dense2)
     
-    # 두 네트워크 결합 (Concatenate 사용)
     combined = Concatenate(name='concatenate')([lstm2, cnn_dense2])
     combined = BatchNormalization()(combined)
     combined = Dropout(dropout_rate)(combined)
     
-    # 최종 출력 레이어
     output_dense = Dense(n_hidden, activation='relu',
                         kernel_regularizer=l1_l2(l1=1e-5, l2=1e-4),
                         name='output_dense')(combined)
@@ -156,10 +127,8 @@ def create_optimized_model(t_step, n_feat, n_hidden=256, dropout_rate=0.3):
     
     model = Model([x_lstm_input, x_cnn_input], y_output)
     
-    # 최적화된 옵티마이저 (학습률 스케줄링은 콜백에서 처리)
     optimizer = Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
     
-    # Huber Loss 사용 (이상치에 덜 민감)
     model.compile(
         loss='huber',
         optimizer=optimizer,
@@ -171,15 +140,6 @@ def create_optimized_model(t_step, n_feat, n_hidden=256, dropout_rate=0.3):
 
 def train_optimized_model(model, x_train, y_train, x_val, y_val, 
                          epochs=100, batch_size=64, model_save_path='best_model.h5'):
-    """
-    최적화된 학습 함수
-    
-    개선 사항:
-    - Early Stopping
-    - Learning Rate Reduction
-    - Model Checkpoint
-    - Validation 데이터 사용
-    """
     callbacks = [
         EarlyStopping(
             monitor='val_loss',
@@ -224,13 +184,11 @@ def train_optimized_model(model, x_train, y_train, x_val, y_val,
 
 
 def evaluate_model(model, x_test, y_test, t_step, n_feat):
-    """모델 평가"""
     y_pred = model.predict(
         [x_test, x_test.reshape(-1, t_step, n_feat, 1)],
         verbose=0
     )
     
-    # 등락율만 추출 (첫 번째 feature가 등락율이라고 가정)
     y_test_rtn = y_test[:, 0]
     y_pred_rtn = y_pred[:, 0]
     
@@ -250,14 +208,12 @@ def evaluate_model(model, x_test, y_test, t_step, n_feat):
 
 
 def predict_next_day(model, df, t_step, rtn_mean, rtn_std, last_price):
-    """내일의 수익률과 주가를 예측한다."""
     n_feat = df.shape[1]
     px_lstm = np.array(df.tail(t_step)).reshape(1, t_step, n_feat)
     px_cnn = px_lstm.reshape(1, t_step, n_feat, 1)
     
     y_pred = model.predict([px_lstm, px_cnn], verbose=0)[0]
     
-    # 등락율만 추출 (첫 번째 feature)
     y_rtn = y_pred[0] * rtn_std + rtn_mean
     
     predicted_price = last_price * (1 + y_rtn)
@@ -266,10 +222,8 @@ def predict_next_day(model, df, t_step, rtn_mean, rtn_std, last_price):
 
 
 def plot_training_history(history, save_path='training_history.png'):
-    """학습 히스토리 시각화"""
     fig, axes = plt.subplots(2, 2, figsize=(15, 10))
     
-    # Loss
     axes[0, 0].plot(history.history['loss'], label='Train Loss', color='blue')
     axes[0, 0].plot(history.history['val_loss'], label='Val Loss', color='red')
     axes[0, 0].set_title('Model Loss')
@@ -278,7 +232,6 @@ def plot_training_history(history, save_path='training_history.png'):
     axes[0, 0].legend()
     axes[0, 0].grid(True)
     
-    # MAE
     axes[0, 1].plot(history.history['mae'], label='Train MAE', color='blue')
     axes[0, 1].plot(history.history['val_mae'], label='Val MAE', color='red')
     axes[0, 1].set_title('Mean Absolute Error')
@@ -287,7 +240,6 @@ def plot_training_history(history, save_path='training_history.png'):
     axes[0, 1].legend()
     axes[0, 1].grid(True)
     
-    # MSE
     axes[1, 0].plot(history.history['mse'], label='Train MSE', color='blue')
     axes[1, 0].plot(history.history['val_mse'], label='Val MSE', color='red')
     axes[1, 0].set_title('Mean Squared Error')
@@ -296,7 +248,6 @@ def plot_training_history(history, save_path='training_history.png'):
     axes[1, 0].legend()
     axes[1, 0].grid(True)
     
-    # Learning Rate
     if 'lr' in history.history:
         axes[1, 1].plot(history.history['lr'], label='Learning Rate', color='green')
         axes[1, 1].set_title('Learning Rate')
@@ -312,16 +263,6 @@ def plot_training_history(history, save_path='training_history.png'):
 
 
 def main(data_path=None, t_step=30, n_hidden=256, epochs=100, batch_size=64):
-    """
-    최적화된 메인 실행 함수
-    
-    Args:
-        data_path: 데이터 파일 경로
-        t_step: 시계열 길이 (기본값 30으로 증가)
-        n_hidden: Hidden layer 크기 (기본값 256으로 증가)
-        epochs: 최대 학습 에포크
-        batch_size: 배치 크기
-    """
     if data_path is None:
         script_dir = Path(__file__).parent
         data_path = script_dir / 'data' / '삼성전자.csv'
@@ -343,7 +284,6 @@ def main(data_path=None, t_step=30, n_hidden=256, epochs=100, batch_size=64):
     x_data, y_data = build_train_data(np.array(df), t_step, n_jump=1)
     print(f"학습 데이터 shape: {x_data.shape}, {y_data.shape}")
     
-    # Train/Validation/Test 분할
     x_train, x_temp, y_train, y_temp = train_test_split(
         x_data, y_data, test_size=0.3, random_state=42, shuffle=False
     )
@@ -374,17 +314,14 @@ def main(data_path=None, t_step=30, n_hidden=256, epochs=100, batch_size=64):
         model_save_path=model_save_path
     )
     
-    # 학습 히스토리 시각화
     plot_training_history(history, 'training_history_optimized.png')
     
-    # 모델 평가
     print(f"\n모델 평가 중...")
     eval_results = evaluate_model(model, x_test, y_test, t_step, n_feat)
     print(f"  Test MAE: {eval_results['mae']:.6f}")
     print(f"  Test RMSE: {eval_results['rmse']:.6f}")
     print(f"  Test R²: {eval_results['r2']:.4f}")
     
-    # 예측
     print(f"\n예측 중...")
     predicted_return, predicted_price = predict_next_day(
         model, df, t_step, rtn_mean, rtn_std, last_price
@@ -409,12 +346,10 @@ if __name__ == "__main__":
     import sys
     
     data_path = sys.argv[1] if len(sys.argv) > 1 else None
-    
-    # 하이퍼파라미터 설정 (필요시 조정)
     main(
         data_path=data_path,
-        t_step=30,      # 시계열 길이 증가
-        n_hidden=256,   # Hidden units 증가
-        epochs=100,     # 최대 에포크
-        batch_size=64   # 배치 크기
+        t_step=30,
+        n_hidden=256,
+        epochs=100,
+        batch_size=64
     )

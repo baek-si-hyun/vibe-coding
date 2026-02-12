@@ -1,6 +1,3 @@
-"""
-빗썸 API 서비스
-"""
 from datetime import datetime
 from typing import List, Dict, Optional, Tuple
 import httpx
@@ -8,8 +5,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class BithumbService:
-    """빗썸 API 서비스 클래스"""
-
     BASE_URL = "https://api.bithumb.com"
     PAYMENT_CURRENCY = "KRW"
     CONCURRENCY = 8
@@ -22,7 +17,6 @@ class BithumbService:
 
     @staticmethod
     def fetch_symbols() -> List[str]:
-        """모든 거래 심볼 가져오기"""
         try:
             with httpx.Client(timeout=30.0) as client:
                 response = client.get(
@@ -41,16 +35,6 @@ class BithumbService:
 
     @staticmethod
     def fetch_candles(symbol: str, interval: str = "5m") -> List[Dict]:
-        """
-        캔들스틱 데이터 가져오기
-
-        Args:
-            symbol: 심볼 (예: BTC)
-            interval: 간격 (5m 또는 24h)
-
-        Returns:
-            캔들스틱 데이터 리스트
-        """
         try:
             with httpx.Client(timeout=30.0) as client:
                 response = client.get(
@@ -87,7 +71,6 @@ class BithumbService:
 
     @staticmethod
     def build_volume_items(symbols: List[str]) -> List[Dict]:
-        """거래량 급증 아이템 생성"""
         results = []
 
         def process_symbol(symbol: str) -> Optional[Dict]:
@@ -130,7 +113,6 @@ class BithumbService:
 
     @staticmethod
     def build_ma_items(symbols: List[str], period: int) -> List[Dict]:
-        """이동평균 지지 아이템 생성"""
         results = []
 
         def process_symbol(symbol: str) -> Optional[Dict]:
@@ -177,7 +159,6 @@ class BithumbService:
 
     @staticmethod
     def rolling_average(values: List[float], window: int) -> List[Optional[float]]:
-        """롤링 평균 계산"""
         result = [None] * len(values)
         sum_val = 0.0
 
@@ -192,7 +173,6 @@ class BithumbService:
 
     @staticmethod
     def find_last_volume_spike(volumes: List[float], start_index: int) -> Optional[Dict]:
-        """마지막 거래량 급증 찾기"""
         prefix = [0.0] * (len(volumes) + 1)
         for i in range(len(volumes)):
             prefix[i + 1] = prefix[i] + volumes[i]
@@ -216,7 +196,6 @@ class BithumbService:
 
     @staticmethod
     def find_last_resistance_break(candles: List[Dict], start_index: int) -> Optional[int]:
-        """마지막 저항선 돌파 찾기"""
         last_index = None
 
         for i in range(max(start_index, BithumbService.PATTERN_RES_WINDOW), len(candles)):
@@ -232,7 +211,6 @@ class BithumbService:
 
     @staticmethod
     def find_last_ma_bounce(candles: List[Dict], ma: List[Optional[float]], start_index: int) -> Optional[int]:
-        """마지막 이동평균 지지 찾기"""
         last_index = None
 
         for i in range(start_index, len(candles)):
@@ -251,7 +229,6 @@ class BithumbService:
 
     @staticmethod
     def build_pattern_items(symbols: List[str]) -> List[Dict]:
-        """공통 시그널 아이템 생성"""
         results = []
 
         def process_symbol(symbol: str) -> Optional[Dict]:
@@ -319,15 +296,6 @@ class BithumbService:
 
     @staticmethod
     def get_screener_data(mode: str) -> Dict:
-        """
-        스크리너 데이터 가져오기
-
-        Args:
-            mode: 모드 (volume, ma7, ma20, pattern)
-
-        Returns:
-            스크리너 응답 데이터
-        """
         symbols = BithumbService.fetch_symbols()
 
         if mode == "volume":

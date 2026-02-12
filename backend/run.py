@@ -1,6 +1,3 @@
-"""
-Flask 애플리케이션 실행 스크립트
-"""
 from app import create_app, socketio
 
 app = create_app()

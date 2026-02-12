@@ -1,22 +1,7 @@
-"""
-LSTM 모델 유틸리티 함수
-"""
 import numpy as np
 
 
 def build_train_data_many_to_one(data, t_step, n_jump=1):
-    """
-    Many-to-One 방식: 여러 시점의 데이터로 다음 한 시점을 예측
-    
-    Args:
-        data: 2D 배열 (n_data, n_feat)
-        t_step: 시계열 길이
-        n_jump: 샘플링 간격
-    
-    Returns:
-        x_data: (n_samples, t_step, n_feat)
-        y_target: (n_samples, n_feat)
-    """
     n_data = data.shape[0]
     n_feat = data.shape[1]
 
@@ -31,18 +16,6 @@ def build_train_data_many_to_one(data, t_step, n_jump=1):
 
 
 def build_train_data_many_to_many(data, t_step, n_jump=1):
-    """
-    Many-to-Many 방식: 여러 시점의 데이터로 다음 여러 시점을 예측
-    
-    Args:
-        data: 2D 배열 (n_data, n_feat)
-        t_step: 시계열 길이
-        n_jump: 샘플링 간격
-    
-    Returns:
-        x_data: (n_samples, t_step, n_feat)
-        y_target: (n_samples, t_step, n_feat)
-    """
     n_data = data.shape[0]
     n_feat = data.shape[1]
 

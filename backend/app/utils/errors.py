@@ -1,11 +1,7 @@
-"""
-에러 핸들러 유틸리티
-"""
 from flask import jsonify, request
 from werkzeug.exceptions import HTTPException
 
 def add_cors_headers(response):
-    """CORS 헤더 추가 헬퍼"""
     origin = request.headers.get("Origin")
     if origin:
         response.headers["Access-Control-Allow-Origin"] = origin
@@ -20,11 +16,8 @@ def add_cors_headers(response):
 
 
 def register_error_handlers(app):
-    """에러 핸들러 등록"""
-    
     @app.errorhandler(400)
     def bad_request(error):
-        """400 Bad Request 에러 핸들러"""
         response = jsonify({
             "error": "잘못된 요청입니다.",
             "message": str(error.description) if hasattr(error, 'description') else str(error)
@@ -34,7 +27,6 @@ def register_error_handlers(app):
     
     @app.errorhandler(404)
     def not_found(error):
-        """404 Not Found 에러 핸들러"""
         response = jsonify({
             "error": "요청한 리소스를 찾을 수 없습니다.",
             "message": str(error.description) if hasattr(error, 'description') else str(error)
@@ -44,7 +36,6 @@ def register_error_handlers(app):
     
     @app.errorhandler(500)
     def internal_error(error):
-        """500 Internal Server Error 핸들러"""
         response = jsonify({
             "error": "서버 오류가 발생했습니다.",
             "message": str(error.description) if hasattr(error, 'description') else str(error)
@@ -54,7 +45,6 @@ def register_error_handlers(app):
     
     @app.errorhandler(HTTPException)
     def handle_http_exception(error):
-        """일반 HTTP 예외 핸들러"""
         response = jsonify({
             "error": error.name,
             "message": error.description
@@ -64,7 +54,6 @@ def register_error_handlers(app):
     
     @app.errorhandler(Exception)
     def handle_exception(error):
-        """일반 예외 핸들러"""
         response = jsonify({
             "error": "서버 오류가 발생했습니다.",
             "message": str(error)
@@ -74,7 +63,6 @@ def register_error_handlers(app):
 
 
 def handle_service_error(error):
-    """서비스 레이어 에러 처리 헬퍼"""
     response = jsonify({
         "error": "서버 오류가 발생했습니다.",
         "message": str(error)
