@@ -274,7 +274,6 @@ class NewsService:
 
     @staticmethod
     def read_saved_news(filename: Optional[str] = None) -> List[Dict]:
-        """저장된 CSV에서 뉴스 목록 읽기. filename 없으면 통합 파일(news_merged.csv)."""
         filepath = NewsService._get_news_filepath(filename)
         return _read_csv_items(filepath) if filepath else []
 
@@ -285,10 +284,6 @@ class NewsService:
         q: Optional[str] = None,
         filename: Optional[str] = None,
     ) -> Dict:
-        """
-        페이지네이션 및 필터 지원. 스트리밍으로 해당 페이지만 로드.
-        Returns: { items, total, page, limit, hasMore }
-        """
         filepath = NewsService._get_news_filepath(filename)
         if not filepath:
             return {"items": [], "total": 0, "page": page, "limit": limit, "hasMore": False}

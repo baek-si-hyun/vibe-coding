@@ -23,8 +23,8 @@ export function useKrxData(market: Market, category: Category) {
   } = useQuery({
     queryKey: ["krx", market, category],
     queryFn: () => fetchKrxData(market, category),
-    staleTime: 10 * 60 * 1000, // 10분 - 이 시간 동안은 캐시된 데이터를 사용
-    gcTime: 30 * 60 * 1000, // 30분 - 캐시 보관 시간
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,

@@ -143,8 +143,8 @@ export async function GET(request: NextRequest) {
     market,
     category,
     asOf: Date.now(),
-    momentumThreshold: 0, // 코스피/코스닥은 모멘텀 점수 사용 안 함
-    groups, // 코스피/코스닥은 빈 배열
+    momentumThreshold: 0,
+    groups,
     newsGroups,
     summary: {
       groupCount: groups.length,

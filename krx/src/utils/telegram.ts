@@ -454,7 +454,7 @@ export async function getTelegramMessages(
       return result;
     } catch (err) {
       if (err instanceof errors.FloodWaitError && typeof (err as errors.FloodWaitError).seconds === "number") {
-        const wait = Math.min((err as errors.FloodWaitError).seconds * 1000, 300000); // max 5 min
+        const wait = Math.min((err as errors.FloodWaitError).seconds * 1000, 300000);
         await sleep(wait);
         continue;
       }
