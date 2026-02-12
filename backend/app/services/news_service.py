@@ -1,6 +1,3 @@
-"""
-뉴스 크롤링 서비스
-"""
 import csv
 from datetime import datetime
 from pathlib import Path
@@ -16,11 +13,10 @@ def _get_news_data_dir() -> Path:
 
 
 MERGED_FILENAME = "news_merged.csv"
-FIELDNAMES = ["title", "link", "description", "pubDate"]
+FIELDNAMES = ["title", "link", "description", "pubDate", "keyword"]
 
 
 def _read_csv_items(filepath: Path) -> List[Dict]:
-    """CSV 파일에서 뉴스 행 목록 읽기."""
     items = []
     with open(filepath, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -30,12 +26,12 @@ def _read_csv_items(filepath: Path) -> List[Dict]:
                 "link": row.get("link", ""),
                 "description": row.get("description", ""),
                 "pubDate": row.get("pubDate", ""),
+                "keyword": row.get("keyword", ""),
             })
     return items
 
 
 def _dedupe_by_link(items: List[Dict]) -> List[Dict]:
-    """link 기준 중복 제거 (먼저 나온 것 유지)."""
     seen: set = set()
     out: List[Dict] = []
     for item in items:
@@ -48,41 +44,21 @@ def _dedupe_by_link(items: List[Dict]) -> List[Dict]:
 
 
 class NewsService:
-    """뉴스 크롤링 서비스 클래스"""
-    
     @staticmethod
     def fetch_news(query: str, source: str = "naver", date: Optional[str] = None, 
                    max_results: int = 100, **kwargs) -> Dict:
-        """
-        뉴스 검색
-        
-        Args:
-            query: 검색어
-            source: 소스 (naver 또는 daum)
-            date: 날짜 (YYYYMMDD 형식)
-            max_results: 최대 결과 수
-            **kwargs: 추가 파라미터 (display, start, size, page 등)
-        
-        Returns:
-            검색 결과 딕셔너리
-        
-        Raises:
-            ValueError: 검색어가 없거나 소스가 유효하지 않은 경우
-        """
         if not query:
             raise ValueError("검색어(query)가 필요합니다.")
         
         if source not in ["naver", "daum"]:
             raise ValueError(f"지원하지 않는 소스: {source}. 지원: naver, daum")
         
-        # 날짜 형식 검증
         if date:
             try:
                 datetime.strptime(date, "%Y%m%d")
             except ValueError:
                 raise ValueError(f"날짜 형식이 올바르지 않습니다. (YYYYMMDD 형식, 입력: {date})")
         
-        # 크롤러 인스턴스 생성 및 검색
         crawler = get_news_crawler(source)
         
         if max_results > 100:
@@ -94,19 +70,6 @@ class NewsService:
     
     @staticmethod
     def fetch_daum_section(section: str, max_results: int = 100) -> Dict:
-        """
-        다음 뉴스 섹션 페이지 크롤링 (economy, stock, politics 등)
-        
-        news.daum.net은 리스트 형식이 아니라 카드/블록으로 되어 있어
-        fetch_section으로 v.daum.net/v/ 링크를 수집합니다.
-        
-        Args:
-            section: economy, stock, politics, society, policy, industry, finance, estate, coin
-            max_results: 최대 수집 개수
-        
-        Returns:
-            섹션 크롤링 결과
-        """
         from news_crawler import DAUM_SECTIONS
         
         if section not in DAUM_SECTIONS:
@@ -122,21 +85,6 @@ class NewsService:
     def crawl_and_save(sources: List[str], max_results: int = 100,
                        queries: Optional[List[str]] = None,
                        daum_sections: Optional[List[str]] = None) -> Dict:
-        """
-        뉴스 크롤링 및 저장
-        
-        Args:
-            sources: 크롤링할 소스 목록 (naver, daum)
-            max_results: 최대 결과 수
-            queries: 검색어 목록 (기본값: 주식 관련 키워드) - naver/daum 검색용
-            daum_sections: 다음 섹션 목록 (economy, stock 등) - daum 전용, 리스트 형식 대응
-        
-        Returns:
-            크롤링 결과 딕셔너리
-        
-        Raises:
-            ValueError: sources가 유효하지 않은 경우
-        """
         if not isinstance(sources, list) or len(sources) == 0:
             raise ValueError("sources는 비어있지 않은 배열이어야 합니다.")
         
@@ -157,23 +105,25 @@ class NewsService:
             source_results = []
             
             if source == "daum" and daum_sections:
-                # 다음 섹션 페이지 크롤링 (리스트 아닌 카드/블록 형식)
                 crawler = get_news_crawler(source)
                 for section in daum_sections:
                     try:
                         result = crawler.fetch_section(section, max_results=max_results)
                         if result.get("items"):
+                            for it in result["items"]:
+                                it["keyword"] = it.get("keyword") or section
                             source_results.extend(result["items"])
                             total_count += len(result["items"])
                     except Exception:
                         continue
             else:
-                # 검색 기반 크롤링 (naver, daum 검색)
                 crawler = get_news_crawler(source)
                 for query in queries:
                     try:
                         result = crawler.fetch(query, max_results=max_results)
                         if result.get("items"):
+                            for it in result["items"]:
+                                it["keyword"] = it.get("keyword") or query
                             source_results.extend(result["items"])
                             total_count += len(result["items"])
                     except Exception:
@@ -186,7 +136,6 @@ class NewsService:
                     "items": source_results
                 })
         
-        # 이번 크롤링 결과만 평탄화
         new_items: List[Dict] = []
         for r in all_results:
             for item in r["items"]:
@@ -195,9 +144,9 @@ class NewsService:
                     "link": item.get("link", ""),
                     "description": item.get("description", ""),
                     "pubDate": item.get("pubDate", ""),
+                    "keyword": item.get("keyword", ""),
                 })
 
-        # 기존 통합 파일이 있으면 읽어서 합치기
         merged_path = lstm_data_dir / MERGED_FILENAME
         existing_items: List[Dict] = []
         if merged_path.exists():
@@ -206,7 +155,6 @@ class NewsService:
             except Exception:
                 existing_items = []
 
-        # 기존 + 새 뉴스 합친 뒤 link 기준 중복 제거
         merged_items = _dedupe_by_link(existing_items + new_items)
         added_count = len(merged_items) - len(existing_items)
 
@@ -228,16 +176,12 @@ class NewsService:
 
     @staticmethod
     def crawl_api_resume(sources: Optional[List[str]] = None) -> Dict:
-        """
-        API 기반 뉴스 수집 (끊겼던 부분부터 이어서)
-        네이버/다음 API로 키워드별 수집, 진행 상황 저장, 호출 제한 시 중단 후 재실행 가능
-        """
         if sources is None:
             sources = ["daum", "naver"]
         total_saved = 0
         added_total = 0
         results = []
-        skipped = []  # {"source": str, "reason": str}
+        skipped = []
         rate_limited = False
         errors = []
         for source in sources:
@@ -256,14 +200,12 @@ class NewsService:
         if not results and errors:
             return {"error": "; ".join(errors), "total_saved": 0, "added_this_run": 0}
         items = NewsService.read_saved_news()
-        # 소스별 실행 결과 (네이버/다음 각각 호출 여부 확인용)
         source_results = [
             {"source": r["source"], "added": r.get("added_this_run", 0), "total": r.get("total_saved", 0), "rate_limited": r.get("rate_limited", False)}
             for r in results
         ]
         for s in skipped:
             source_results.append({"source": s["source"], "skipped": True, "reason": s["reason"]})
-        # 호출 제한 시 다음 소스로 이어서 진행했는지 메시지에 표시
         rate_limited_sources = [r["source"] for r in results if r.get("rate_limited")]
         continued_sources = [r["source"] for r in results if not r.get("rate_limited")]
         msg = results[-1].get("message", "") if results else "완료"
@@ -282,7 +224,6 @@ class NewsService:
 
     @staticmethod
     def list_saved_files() -> List[Dict]:
-        """저장된 뉴스 CSV 파일 목록 (통합 파일 우선, 이후 최신순)"""
         data_dir = _get_news_data_dir()
         if not data_dir.exists():
             return []
@@ -315,7 +256,6 @@ class NewsService:
 
     @staticmethod
     def _get_news_filepath(filename: Optional[str] = None) -> Optional[Path]:
-        """뉴스 CSV 파일 경로 반환."""
         data_dir = _get_news_data_dir()
         if not data_dir.exists():
             return None
@@ -367,6 +307,7 @@ class NewsService:
                     "link": row.get("link", ""),
                     "description": row.get("description", ""),
                     "pubDate": row.get("pubDate", ""),
+                    "keyword": row.get("keyword", ""),
                 }
                 if q_lower and (
                     q_lower not in (it.get("title") or "").lower()

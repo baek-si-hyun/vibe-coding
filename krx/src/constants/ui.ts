@@ -1,4 +1,3 @@
-// UI 관련 상수들
 export const UI_LABELS = {
   DAYS: {
     ONE: "1일",
@@ -110,7 +109,6 @@ export const UI_LABELS = {
   LOADING: "불러오는 중...",
 } as const;
 
-// 매직 넘버 상수화
 export const THRESHOLDS = {
   TURNOVER_SPIKE: 2,
   TOP_CAP_RATIO: 0.67,
@@ -124,13 +122,12 @@ export const THRESHOLDS = {
   SHORT_ALERT_CHANGE5D: 4,
   MAX_SCORE: 100,
   BONUS_SCORE: 5,
-  TURNOVER_SCORE_DIVISOR: 3, // turnoverScore 계산용
-  DEFAULT_SCORE: 0.5, // 기본 점수
-  MAX_NORMALIZED: 1, // 정규화 최대값
-  MIN_NORMALIZED: 0, // 정규화 최소값
+  TURNOVER_SCORE_DIVISOR: 3,
+  DEFAULT_SCORE: 0.5,
+  MAX_NORMALIZED: 1,
+  MIN_NORMALIZED: 0,
 } as const;
 
-// 가중치 상수
 export const WEIGHTS = {
   RS5D: 0.3,
   RS20D: 0.2,
@@ -140,15 +137,13 @@ export const WEIGHTS = {
   FLOW: 0.1,
 } as const;
 
-// 스타일 관련 상수
 export const STYLES = {
-  STICKY_TOP: 6, // sticky top-6
-  STICKY_TOP_MULTIPLIER: 0.25, // rem 변환용
+  STICKY_TOP: 6,
+  STICKY_TOP_MULTIPLIER: 0.25,
   CARD_SHADOW: "shadow-md",
   CARD_HOVER: "hover:shadow-lg",
 } as const;
 
-// 색상 관련 상수
 export const COLORS = {
   POSITIVE: "text-red-600",
   NEGATIVE: "text-blue-600",
@@ -158,22 +153,19 @@ export const COLORS = {
   BADGE_BLUE: "bg-blue-500",
 } as const;
 
-// 기타 상수
 export const LIMITS = {
   NEWS_QUERY_MAX_LENGTH: 60,
-  NEWS_PAGE: 1, // 뉴스 API 페이지 번호
-  ARRAY_FIRST_INDEX: 0, // 배열 첫 번째 인덱스
+  NEWS_PAGE: 1,
+  ARRAY_FIRST_INDEX: 0,
 } as const;
 
-// 포맷팅 관련 상수
 export const FORMATTING = {
-  JO_DIVISOR: 1_000_000_000_000, // 조 단위
-  EOK_DIVISOR: 100_000_000, // 억 단위
-  PERCENT_MULTIPLIER: 100, // 퍼센트 변환
+  JO_DIVISOR: 1_000_000_000_000,
+  EOK_DIVISOR: 100_000_000,
+  PERCENT_MULTIPLIER: 100,
 } as const;
 
-// 캐시 관련 상수
 export const CACHE = {
-  MAX_AGE: 30, // 초
-  STALE_WHILE_REVALIDATE: 60, // 초
+  MAX_AGE: 30,
+  STALE_WHILE_REVALIDATE: 60,
 } as const;

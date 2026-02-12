@@ -114,12 +114,10 @@ export default function BithumbMarketScreener() {
     [],
   );
 
-  // WebSocket 연결 및 데이터 수신
   useEffect(() => {
     setStatus("loading");
     setErrorMessage(null);
 
-    // Socket.IO 연결 (Werkzeug 개발 서버 호환을 위해 polling 전용)
     const socket = io("http://localhost:5001", {
       transports: ["polling"],
     });
@@ -129,7 +127,6 @@ export default function BithumbMarketScreener() {
     socket.on("connect", () => {
       setIsConnected(true);
       setStatus("idle");
-      // 구독 요청
       socket.emit("subscribe_bithumb", { mode });
     });
 
@@ -145,7 +142,6 @@ export default function BithumbMarketScreener() {
       setErrorMessage("서버에 연결할 수 없습니다.");
     });
 
-    // 실시간 데이터 수신
     const eventName = `bithumb_${mode}`;
     socket.on(eventName, (payload: ScreenerResponse) => {
       if (payload.mode === mode) {
@@ -155,7 +151,6 @@ export default function BithumbMarketScreener() {
       }
     });
 
-    // 모드 변경 시 재구독
     socket.emit("subscribe_bithumb", { mode });
 
     return () => {
@@ -165,7 +160,6 @@ export default function BithumbMarketScreener() {
     };
   }, [mode]);
 
-  // 수동 새로고침 (백엔드 API 직접 호출)
   useEffect(() => {
     if (refreshIndex === 0) return;
 

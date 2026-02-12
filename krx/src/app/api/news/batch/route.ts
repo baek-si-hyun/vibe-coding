@@ -52,7 +52,6 @@ export async function POST(request: NextRequest) {
       } as BatchNewsResponse);
     }
 
-    // Fetch news signals for all groups
     const results = await mapWithConcurrency(
       groups,
       NEWS_CONCURRENCY,

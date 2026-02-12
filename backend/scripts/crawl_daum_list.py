@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""
-뉴스 검색 API 기반 수집 (크롤링 대체)
-- 네이버: 뉴스 검색 API (NAVER_CLIENT_ID/SECRET)
-- 다음: 카카오 웹 검색 API (KAKAO_REST_API_KEY)
-- 키워드 단위 병렬 처리, 체크포인트 지원
-"""
 import sys
 from pathlib import Path
 

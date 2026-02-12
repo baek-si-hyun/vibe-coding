@@ -19,7 +19,7 @@ DATA_DIR = BACKEND_DIR / "lstm" / "data" / "news"
 MERGED_FILENAME = "news_merged.csv"
 KEYWORDS_FILE = "crawl_keywords.json"
 PROGRESS_FILE = "crawl_list_progress.json"
-FIELDNAMES = ["title", "link", "description", "pubDate"]
+FIELDNAMES = ["title", "link", "description", "pubDate", "keyword"]
 
 
 def _load_keywords() -> list:
@@ -84,6 +84,7 @@ def _append_rows(rows: list):
                 "link": (r.get("link") or "").strip(),
                 "description": _clean_text(r.get("description", "")),
                 "pubDate": (r.get("pubDate") or "").strip(),
+                "keyword": (r.get("keyword") or keyword or "").strip(),
             }
             w.writerow(row)
 
@@ -197,7 +198,12 @@ def run_crawl_api(
                         if not link or link in seen:
                             continue
                         seen.add(link)
+                        it["keyword"] = it.get("keyword") or kw2
                         batch.append(it)
+                    if batch:
+                        _append_rows(batch)
+                        total_saved += len(batch)
+                        batch = []
                     break
                 completed_keywords.append(kw2)
                 for it in items:
@@ -205,6 +211,7 @@ def run_crawl_api(
                     if not link or link in seen:
                         continue
                     seen.add(link)
+                    it["keyword"] = it.get("keyword") or kw2
                     batch.append(it)
                     if len(batch) >= checkpoint_every:
                         _append_rows(batch)

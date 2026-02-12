@@ -109,7 +109,6 @@ export default function KrxMomentumScreener({
 
   return (
     <div className="space-y-6">
-      {/* Control Panel */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="space-y-6">
           <MarketCategorySelector
@@ -123,12 +122,10 @@ export default function KrxMomentumScreener({
         </div>
       </div>
 
-          {/* Error Alert */}
           {status === "error" && errorMessage && (
             <ErrorAlert message={errorMessage} />
           )}
 
-          {/* Search and Sort */}
           {status !== "error" && data && (
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex-1 max-w-md">
@@ -149,7 +146,6 @@ export default function KrxMomentumScreener({
             </div>
           )}
 
-          {/* Main Grid */}
           {status !== "error" && (
             <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
               <div className="min-w-0">
@@ -180,7 +176,6 @@ export default function KrxMomentumScreener({
             </div>
           )}
 
-      {/* Footer */}
       <Footer note={data?.note} />
     </div>
   );

@@ -24,7 +24,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // phoneCodeHash는 선택사항 (client.start()가 자동으로 처리)
     const result = await verifyTelegramCode(config, code, phoneCodeHash, password);
     
     if (!result.success) {

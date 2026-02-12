@@ -1,6 +1,7 @@
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions";
 import { Api } from "telegram/tl";
+import { errors } from "telegram";
 import fs from "fs";
 import { promises as fsp } from "fs";
 import path from "path";
@@ -180,7 +181,6 @@ const writeSessionFile = async (sessionString: string | null): Promise<void> => 
       "utf8",
     );
   } catch {
-    // ignore persistence errors (in-memory still works)
   }
 };
 
@@ -192,7 +192,6 @@ const writePendingAuthFile = async (record: PendingAuthRecord | null): Promise<v
     }
     await fsp.writeFile(PENDING_AUTH_FILE_PATH, JSON.stringify(record), "utf8");
   } catch {
-    // ignore persistence errors (in-memory still works)
   }
 };
 
@@ -346,10 +345,6 @@ export async function getTelegramChats(
   }
 }
 
-/**
- * 채팅방별 전체 메시지를 가져옵니다 (페이지네이션 지원).
- * maxMessages: 채팅당 최대 메시지 수 (0이면 제한 없음, 기본 1000)
- */
 export async function getTelegramMessagesAll(
   config: TelegramConfig,
   chatIds: number[],
@@ -401,67 +396,73 @@ export async function getTelegramMessages(
     return [];
   }
 
-  try {
-    const params: { limit: number; offsetId?: number } = { limit };
-    if (offsetId != null && offsetId > 0) {
-      params.offsetId = offsetId;
-    }
-    const messages = await client.getMessages(entity, params);
-    const result: TelegramMessage[] = [];
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const maxRetries = 3;
 
-    for (const msg of messages) {
-      if (msg instanceof Api.Message && msg.message) {
-        const sender = msg.fromId;
-        let senderId: number | undefined;
-        let senderName: string | undefined;
-
-        if (sender instanceof Api.PeerUser) {
-          senderId = toJsNumber(sender.userId);
-          try {
-            const user = await client.getEntity(sender);
-            if (user instanceof Api.User) {
-              senderName =
-                `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
-                undefined;
-            }
-          } catch {
-            // ignore sender lookup errors
-          }
-        }
-
-        let chatTitle: string | undefined;
-        try {
-          const chat = await msg.getChat();
-          if (chat instanceof Api.Chat || chat instanceof Api.Channel) {
-            chatTitle = "title" in chat ? String(chat.title) : undefined;
-          }
-        } catch {
-          // ignore chat lookup errors
-        }
-
-        const messageDate =
-          typeof msg.date === "number"
-            ? msg.date * 1000
-            : msg.date instanceof Date
-              ? msg.date.getTime()
-              : Date.now();
-
-        result.push({
-          id: msg.id,
-          message: msg.message,
-          date: messageDate,
-          senderId,
-          senderName,
-          chatId,
-          chatTitle,
-        });
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const params: { limit: number; offsetId?: number; waitTime?: number } = {
+        limit,
+        waitTime: 1,
+      };
+      if (offsetId != null && offsetId > 0) {
+        params.offsetId = offsetId;
       }
-    }
+      const messages = await client.getMessages(entity, params);
+      const result: TelegramMessage[] = [];
 
-    return result;
-  } catch {
-    return [];
+      let chatTitle: string | undefined;
+      for (const msg of messages) {
+        if (msg instanceof Api.Message && msg.message) {
+          if (chatTitle === undefined) {
+            try {
+              const chat = await msg.getChat();
+              if (chat instanceof Api.Chat || chat instanceof Api.Channel) {
+                chatTitle = "title" in chat ? String(chat.title) : undefined;
+              }
+            } catch {
+            }
+          }
+
+          const sender = msg.fromId;
+          let senderId: number | undefined;
+          let senderName: string | undefined;
+          if (sender instanceof Api.PeerUser) {
+            senderId = toJsNumber(sender.userId);
+          }
+
+          const msgDate = msg.date as number | Date;
+          const messageDate =
+            typeof msgDate === "number"
+              ? msgDate * 1000
+              : msgDate instanceof Date
+                ? msgDate.getTime()
+                : Date.now();
+
+          result.push({
+            id: msg.id,
+            message: msg.message,
+            date: messageDate,
+            senderId,
+            senderName,
+            chatId,
+            chatTitle,
+          });
+        }
+      }
+
+      return result;
+    } catch (err) {
+      if (err instanceof errors.FloodWaitError && typeof (err as errors.FloodWaitError).seconds === "number") {
+        const wait = Math.min((err as errors.FloodWaitError).seconds * 1000, 300000); // max 5 min
+        await sleep(wait);
+        continue;
+      }
+      throw err;
+    }
   }
+
+  return [];
 }
 
 export async function sendTelegramCode(

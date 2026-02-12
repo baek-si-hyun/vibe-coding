@@ -40,7 +40,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 세션이 없으면 인증 필요
     if (!config.sessionString || config.sessionString.trim() === "") {
       return NextResponse.json(
         {
@@ -72,7 +71,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ chats: filteredChats });
   } catch (error) {
-    // 최상위 에러 처리 - 모든 예외를 잡아서 JSON 응답 보장
     const errorMessage = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
       {

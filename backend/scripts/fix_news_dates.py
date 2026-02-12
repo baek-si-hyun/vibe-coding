@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""
-[일회성 - 이미 실행됨] news_merged.csv 날짜 형식 통일
-- YYYY-MM-DD HH:mm → YYYY-MM-DD
-- 빈 pubDate → 오늘 날짜 (이번 1회만, 재실행 시 빈 값은 또 오늘로 채워짐)
-- 다음부터 빈 날짜는 크롤러에서 URL 등으로 추출하고, 오늘로 채우지 않음
-"""
 import csv
 import re
 from datetime import datetime
@@ -12,11 +6,9 @@ from pathlib import Path
 
 
 def normalize_date(val: str, default_today: str) -> str:
-    """날짜를 YYYY-MM-DD로 통일. 빈 값이면 default_today 반환."""
     if not val or not str(val).strip():
         return default_today
     val = str(val).strip()
-    # YYYY-MM-DD 또는 YYYY-MM-DD HH:mm
     m = re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})", val)
     if m:
         try:
@@ -24,7 +16,6 @@ def normalize_date(val: str, default_today: str) -> str:
             return m.group(1) + "-" + m.group(2).zfill(2) + "-" + m.group(3).zfill(2)
         except ValueError:
             pass
-    # YYYY.MM.DD
     m = re.match(r"^(\d{4})\.(\d{1,2})\.(\d{1,2})", val)
     if m:
         try:

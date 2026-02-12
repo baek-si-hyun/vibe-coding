@@ -13,6 +13,7 @@ type NewsItem = {
   link: string;
   description: string;
   pubDate: string;
+  keyword?: string;
 };
 
 type NewsItemsPageResponse = {

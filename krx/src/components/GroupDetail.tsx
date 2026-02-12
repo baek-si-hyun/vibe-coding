@@ -50,7 +50,6 @@ function GroupDetailComponent({ group, category, newsInfo }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <span className="inline-block px-2.5 py-1 text-xs font-medium text-gray-700 bg-gray-100 rounded-full mb-3">
           {categoryLabel}
@@ -66,7 +65,6 @@ function GroupDetailComponent({ group, category, newsInfo }: Props) {
         </p>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
           <p className="text-xs font-medium text-gray-600 mb-1">
@@ -191,7 +189,6 @@ function GroupDetailComponent({ group, category, newsInfo }: Props) {
         </div>
       )}
 
-      {/* Stock Table */}
       {newsInfo ? (
         leaderStock && (
           <div className="space-y-3">

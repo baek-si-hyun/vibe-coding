@@ -60,7 +60,6 @@ export function calculateMomentumScore(
       ),
   );
 
-  // 보너스 점수
   if (
     group.turnoverSpike >= TURNOVER_SPIKE_THRESHOLD &&
     group.topCapRatio >= TOP_CAP_RATIO_THRESHOLD

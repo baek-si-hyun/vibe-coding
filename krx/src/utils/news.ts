@@ -630,7 +630,6 @@ export async function fetchNewsSignal(
   };
 }
 
-// 전체 뉴스를 가져오는 함수
 export async function fetchAllNews(config: NewsConfig): Promise<NewsItem[]> {
   if (config.enabledSources.length === 0) return [];
 
@@ -697,7 +696,6 @@ async function fetchAllNewsUncached(config: NewsConfig): Promise<NewsItem[]> {
     allNews.push(...newsItems);
   }
 
-  // 중복 제거 (정규화된 제목 기준)
   const deduped = new Map<string, NewsItem>();
   for (const item of allNews) {
     const key = normalizeText(item.title);
@@ -714,7 +712,6 @@ async function fetchAllNewsUncached(config: NewsConfig): Promise<NewsItem[]> {
   return recentNews;
 }
 
-// 네이버 뉴스 아이템 가져오기
 async function fetchNaverNewsItems(
   query: string,
   config: NonNullable<NewsConfig["naver"]>,
@@ -748,7 +745,6 @@ async function fetchNaverNewsItems(
   }));
 }
 
-// 다음 뉴스 아이템 가져오기
 async function fetchDaumNewsItems(
   query: string,
   config: NonNullable<NewsConfig["daum"]>,
@@ -781,7 +777,6 @@ async function fetchDaumNewsItems(
   }));
 }
 
-// NewsAPI 뉴스 아이템 가져오기
 async function fetchNewsApiNewsItems(
   query: string,
   config: NonNullable<NewsConfig["newsapi"]>,
@@ -815,7 +810,6 @@ async function fetchNewsApiNewsItems(
   }));
 }
 
-// 전체 뉴스에서 그룹별 신호 생성
 export async function buildNewsSignals(
   groups: Array<Group>,
   config: NewsConfig,
@@ -825,7 +819,6 @@ export async function buildNewsSignals(
     return signals;
   }
 
-  // 전체 뉴스 가져오기
   const allNews = await fetchAllNews(config);
   if (allNews.length === 0) {
     return signals;
@@ -856,7 +849,6 @@ export async function buildNewsSignals(
     });
   }
 
-  // 각 그룹별로 뉴스에서 언급 빈도 계산
   for (const group of groups) {
     const entry = keywordMap.get(group.id);
     const keywords = entry?.keywords ?? [];
@@ -903,7 +895,6 @@ export async function buildNewsSignals(
       continue;
     }
 
-    // 감성 분석 (가중치 적용)
     const sentimentScore = computeWeightedSentiment(
       matchedNews.map((news) => ({ text: news.text, weight: news.weight })),
     );
@@ -913,14 +904,12 @@ export async function buildNewsSignals(
       0,
     );
 
-    // 볼륨 점수 계산 (전체 뉴스 대비 가중 비율)
     const volumeScore = clamp(
       matchWeightSum / (Math.max(totalWeight, 1) * VOLUME_BASE_RATIO),
       THRESHOLDS.MIN_NORMALIZED,
       THRESHOLDS.MAX_NORMALIZED,
     );
 
-    // 최종 점수 계산
     const score = clamp(
       THRESHOLDS.DEFAULT_SCORE +
         THRESHOLDS.DEFAULT_SCORE * sentimentScore * volumeScore,
@@ -928,7 +917,6 @@ export async function buildNewsSignals(
       THRESHOLDS.MAX_NORMALIZED,
     );
 
-    // 소스 추출
     const sources = Array.from(
       new Set(matchedNews.map((news) => news.source)),
     ) as NewsSource[];

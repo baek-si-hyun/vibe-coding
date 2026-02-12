@@ -17,7 +17,6 @@ import { clamp } from "@/utils/momentum";
 import type { NewsGroup, NewsSource } from "@/types";
 import { THEME_KEYWORDS } from "@/data/theme-keywords";
 
-// GroupResponse는 Group과 동일 (Group에 이미 모든 필드 포함)
 type GroupResponse = Group;
 
 type ScreenerResponse = {
@@ -43,10 +42,6 @@ type ScreenerResponse = {
   note: string;
 };
 
-/**
- * theme-keywords.ts의 그룹 목록을 기반으로 최소한의 그룹 구조 생성
- * (뉴스 분석용)
- */
 function createGroupsFromKeywords(market: Market, category: Category): Group[] {
   const groupNames = Object.keys(THEME_KEYWORDS);
   return groupNames.map((groupName) => ({
@@ -84,15 +79,12 @@ export async function GET(request: NextRequest) {
     category: searchParams.get("category"),
   };
 
-  // 모든 시장: 뉴스 기반 이슈 분석만 사용
   const baseGroups = createGroupsFromKeywords(market, category);
 
-  // Fetch news signals if configured
   const newsConfig = getNewsConfig();
   
   const newsSignals = await buildNewsSignals(baseGroups, newsConfig);
 
-  // 모든 시장: 뉴스 기반 이슈 분석만 (groups는 빈 배열)
   const groups: Group[] = [];
   
   const enabledSources = newsConfig.enabledSources;
@@ -101,7 +93,6 @@ export async function GET(request: NextRequest) {
       const signal = newsSignals.get(group.id);
       if (!signal) return null;
       
-      // 뉴스 점수만 사용
       const issueScoreRaw = clamp(
         signal.score,
         THRESHOLDS.MIN_NORMALIZED,
@@ -111,13 +102,11 @@ export async function GET(request: NextRequest) {
       const issueScore = Math.round(issueScoreRaw * 100);
       const newsScore = Math.round(signal.score * 100);
       
-      // 뉴스 신호만 확인
       const meetsNewsSignal = signal.totalCount >= ISSUE_NEWS_COUNT_THRESHOLD;
       const isQualified = meetsNewsSignal && issueScore >= ISSUE_SCORE_THRESHOLD;
       
       if (!isQualified) return null;
       
-      // leader stock은 빈 stocks 배열이므로 더미 데이터 생성
       const leader: Stock = {
         symbol: "",
         name: group.name,

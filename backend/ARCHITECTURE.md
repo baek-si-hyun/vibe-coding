@@ -9,19 +9,20 @@ backend/
 │   ├── routes/                   # Blueprint 라우트
 │   │   ├── __init__.py
 │   │   ├── health.py             # 헬스 체크
-│   │   ├── krx.py                # KRX API
-│   │   └── news.py               # 뉴스 API
+│   │   ├── krx.py                # KRX API + POST /api/collect
+│   │   ├── news.py               # 뉴스 API
+│   │   ├── telegram.py           # 텔레그램 저장 데이터 API
+│   │   └── bithumb.py            # 빗썸 API
 │   ├── services/                 # 비즈니스 로직 레이어
-│   │   ├── __init__.py
 │   │   ├── krx_service.py       # KRX 서비스
-│   │   └── news_service.py      # 뉴스 서비스
+│   │   ├── news_service.py      # 뉴스 서비스
+│   │   └── bithumb_service.py   # 빗썸 서비스
 │   └── utils/                    # 유틸리티
 │       └── errors.py             # 에러 핸들러
 ├── config.py                     # 설정 관리
 ├── news_crawler.py               # 크롤러 모듈
 ├── run.py                        # 실행 파일
-├── run.sh                        # 실행 스크립트
-└── app.py                        # 기존 파일 (백업용)
+└── run.sh                        # 실행 스크립트
 ```
 
 ## 아키텍처 패턴
@@ -53,6 +54,7 @@ backend/
 ### KRX API
 - `GET /api/endpoints` - 사용 가능한 API 목록
 - `GET /api/<api_id>` - KRX 데이터 조회
+- `POST /api/collect` - KRX API 호출 후 CSV 저장 (lstm/data/krx/)
 
 ### 뉴스 API
 - `GET/POST /api/news` - 뉴스 검색
@@ -60,15 +62,21 @@ backend/
 - `GET/POST /api/news/daum` - 다음 뉴스
 - `POST /api/news/crawl` - 뉴스 크롤링 및 저장
 
-## 실행 방법
+## 스크립트 (scripts/)
+
+| 스크립트 | 용도 |
+|----------|------|
+| krx_collect.py | KRX API 수집 → lstm/data/krx/ CSV 저장 |
+| crawl_daum_list.py | 뉴스 API 수집 → news_merged.csv |
+| chat_export_to_csv.py | ChatExport HTML → telegram_chats CSV 변환 |
+| add_keywords_to_csv.py | news/telegram CSV에 keyword 칼럼 추가 |
+| preprocess_news_csv.py | news_merged.csv 전처리 (HTML 엔티티 제거) |
+| fix_news_dates.py | news 날짜 형식 통일 (일회성) |
+| fix_telegram_chats_csv.py | telegram_chats CSV 형식 수정 |
+
+## 실행
 
 ```bash
-cd backend
-bash run.sh
-# 또는
-python run.py
+cd backend && python run.py
+# 또는 bash run.sh (venv 자동 생성)
 ```
-
-## 마이그레이션 노트
-
-기존 `app.py`는 백업용으로 유지되었습니다. 새로운 구조는 `run.py`를 통해 실행됩니다.

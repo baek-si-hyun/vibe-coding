@@ -7,7 +7,6 @@ export const NEWS_CONCURRENCY = 3;
 export const NEWS_TIMEOUT_MS = 4500;
 export const NEWS_LOOKBACK_HOURS = 24;
 export const NEWS_CACHE_TTL_MS = 60_000;
-// 전체 뉴스 조회용 일반 키워드
 export const GENERAL_NEWS_KEYWORDS = [
   "주식",
   "증시",
@@ -22,7 +21,7 @@ export const GENERAL_NEWS_KEYWORDS = [
   "정책",
   "규제",
 ];
-export const ALL_NEWS_ITEMS_PER_SOURCE = 50; // 전체 뉴스는 더 많이 가져옴
+export const ALL_NEWS_ITEMS_PER_SOURCE = 50;
 
 export const ISSUE_WEIGHTS = {
   NEWS: 0.5,

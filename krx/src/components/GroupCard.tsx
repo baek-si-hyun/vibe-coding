@@ -40,7 +40,6 @@ function GroupCardComponent({ group, isSelected, onSelect }: Props) {
       aria-label={`${UI_LABELS.A11Y.SELECT_GROUP}: ${group.name}`}
     >
       <div className="space-y-3">
-        {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <h3 className="text-base font-bold text-gray-900 truncate mb-1">
@@ -60,7 +59,6 @@ function GroupCardComponent({ group, isSelected, onSelect }: Props) {
           </span>
         </div>
 
-        {/* Progress Bar */}
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div
             className={`h-2 rounded-full transition-all ${
@@ -71,7 +69,6 @@ function GroupCardComponent({ group, isSelected, onSelect }: Props) {
           />
         </div>
 
-        {/* Stats */}
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-700">
           <span>
             {UI_LABELS.DAYS.ONE} {formatChange(group.change1d)}
@@ -90,7 +87,6 @@ function GroupCardComponent({ group, isSelected, onSelect }: Props) {
           </span>
         </div>
 
-        {/* Badges */}
         <div className="flex flex-wrap gap-1.5 pt-1">
           {group.turnoverSpike >= THRESHOLDS.TURNOVER_SPIKE && (
             <span className="px-2 py-1 text-xs font-medium text-yellow-700 bg-yellow-100 rounded-full">

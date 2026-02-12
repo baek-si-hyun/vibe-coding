@@ -1,6 +1,5 @@
 import { FORMATTING, UI_LABELS } from "@/constants/ui";
 
-// Formatter instances - created once at module level for performance
 const percentFormatter = new Intl.NumberFormat("ko-KR", {
   maximumFractionDigits: 1,
   minimumFractionDigits: 1,

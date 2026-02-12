@@ -10,9 +10,8 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            // SSR을 위한 설정
-            staleTime: 30 * 1000, // 30초
-            gcTime: 5 * 60 * 1000, // 5분 (이전 cacheTime)
+            staleTime: 30 * 1000,
+            gcTime: 5 * 60 * 1000,
             refetchOnWindowFocus: false,
             retry: 1,
             refetchOnMount: true,
