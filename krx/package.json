@@ -1,0 +1,39 @@
+{
+  "name": "krx-momentum-screener",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "dev:full": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "next dev -p 3001",
+    "dev:backend": "cd ../backend && bash run.sh",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.62.11",
+    "cheerio": "^1.2.0",
+    "flowbite": "^4.0.1",
+    "flowbite-react": "^0.12.16",
+    "next": "16.1.4",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "socket.io-client": "^4.8.3",
+    "telegram": "^2.26.22"
+  },
+  "devDependencies": {
+    "@tanstack/react-query-devtools": "^5.62.11",
+    "@types/cheerio": "^0.22.35",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10.4.23",
+    "concurrently": "^9.1.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.4",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5"
+  }
+}

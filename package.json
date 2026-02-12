@@ -1,0 +1,15 @@
+{
+  "name": "krx-investment-project",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "cd krx && npm run dev",
+    "dev:backend": "cd backend && bash run.sh",
+    "build": "cd krx && npm run build",
+    "start": "cd krx && npm run start"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

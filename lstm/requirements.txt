@@ -1,0 +1,6 @@
+tensorflow>=2.0.0
+pandas>=1.0.0
+numpy>=1.18.0
+matplotlib>=3.0.0
+jupyter>=1.0.0
+scikit-learn>=1.0.0
