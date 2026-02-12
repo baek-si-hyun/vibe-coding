@@ -1,5 +1,5 @@
 export type Market = "KOSPI" | "KOSDAQ";
-export type TabType = "KOSPI" | "KOSDAQ" | "BITHUMB" | "TELEGRAM" | "NEWS";
+export type TabType = "BITHUMB" | "TELEGRAM" | "NEWS" | "KRX";
 export type Category = "sector" | "theme";
 export type NewsSource = "naver" | "daum" | "newsapi";
 

@@ -65,10 +65,14 @@ export default function NewsPage() {
     setFilter(filterInput.trim());
   };
 
-  const handleCrawl = async () => {
+  const handleCrawl = async (reset = false) => {
     setStatus("loading");
     setMessage("");
-    setProgress("API로 뉴스를 가져오는 중... (끊겼던 부분부터 이어서)");
+    setProgress(
+      reset
+        ? "API로 뉴스를 가져오는 중... (progress 초기화 후 처음부터)"
+        : "API로 뉴스를 가져오는 중... (끊겼던 부분부터 이어서)"
+    );
 
     try {
       const response = await fetch(`${API_BASE}/crawl/resume`, {
@@ -76,6 +80,7 @@ export default function NewsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sources: ["daum", "naver"],
+          reset,
         }),
       });
 
@@ -140,14 +145,16 @@ export default function NewsPage() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-4">뉴스 수집</h1>
         <p className="text-gray-600 mb-6">
-          네이버·다음 API로 뉴스를 수집합니다. 이전에 끊겼던 부분부터 이어서
-          가져와 CSV에 저장하고 화면에 표시합니다.
+          네이버·다음 API로 뉴스를 수집합니다. <strong>불러오기</strong>는
+          lstm/data/news/crawl_list_progress.json을 참고해 끊겼던 키워드부터 이어서 가져옵니다.
+          <strong>처음부터</strong>는 progress를 초기화한 뒤 처음부터 수집합니다.
         </p>
 
         <div className="space-y-4">
+          <div className="flex gap-2">
           <button
             type="button"
-            onClick={handleCrawl}
+            onClick={() => handleCrawl(false)}
             disabled={status === "loading"}
             className={`px-6 py-3 text-base font-medium rounded-lg transition-colors ${
               status === "loading"
@@ -157,6 +164,16 @@ export default function NewsPage() {
           >
             {status === "loading" ? "수집 중..." : "불러오기"}
           </button>
+          <button
+            type="button"
+            onClick={() => handleCrawl(true)}
+            disabled={status === "loading"}
+            className="px-4 py-3 text-base font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="progress 파일 초기화 후 처음부터 수집"
+          >
+            처음부터
+          </button>
+          </div>
 
           {progress && <div className="text-sm text-gray-600">{progress}</div>}
 

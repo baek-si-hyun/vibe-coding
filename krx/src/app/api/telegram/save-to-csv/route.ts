@@ -301,11 +301,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    try {
-      fs.unlinkSync(progressPath);
-    } catch {
-    }
-
+    // 완료해도 progress 파일 유지 (이어하기, 재시작 시 상태 확인용)
     const relativePath = path.relative(process.cwd(), chatsDir);
 
     const msg =

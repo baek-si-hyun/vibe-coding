@@ -114,8 +114,9 @@ def crawl_resume():
     try:
         body = request.get_json() or {}
         sources = body.get("sources", ["daum", "naver"])
+        reset = body.get("reset", False) is True
 
-        result = NewsService.crawl_api_resume(sources=sources)
+        result = NewsService.crawl_api_resume(sources=sources, reset=reset)
         if result.get("error"):
             return jsonify({"error": result["error"]}), 400
         return jsonify(result)

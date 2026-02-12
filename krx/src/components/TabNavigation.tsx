@@ -4,11 +4,10 @@ import type { TabType } from "@/types";
 import { UI_LABELS } from "@/constants/ui";
 
 const TABS: Array<{ id: TabType; label: string }> = [
-  { id: "KOSPI", label: UI_LABELS.TABS.KOSPI },
-  { id: "KOSDAQ", label: UI_LABELS.TABS.KOSDAQ },
   { id: "BITHUMB", label: UI_LABELS.TABS.BITHUMB },
   { id: "TELEGRAM", label: UI_LABELS.TABS.TELEGRAM },
   { id: "NEWS", label: UI_LABELS.TABS.NEWS },
+  { id: "KRX", label: UI_LABELS.TABS.KRX },
 ];
 
 type TabNavigationProps = {

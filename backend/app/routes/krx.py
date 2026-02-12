@@ -35,6 +35,23 @@ def collect_and_save():
         return handle_service_error(e)
 
 
+@bp.route("/collect/resume", methods=["POST"])
+def collect_batch_resume():
+    try:
+        body = request.get_json() or {}
+        delay = float(body.get("delay", 2.0))
+        max_dates = int(body.get("maxDates", 0))
+        reset = body.get("reset", False) is True
+        result = KRXService.collect_batch_resume(delay_sec=delay, max_dates=max_dates, reset=reset)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return handle_service_error(e)
+
+
 @bp.route("/<api_id>", methods=["GET"])
 def fetch_data(api_id):
     try:

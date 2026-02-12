@@ -3,14 +3,13 @@
 import { useState } from "react";
 import type { TabType } from "@/types";
 import AppHeader from "@/components/AppHeader";
-import KospiPage from "@/components/pages/KospiPage";
-import KosdaqPage from "@/components/pages/KosdaqPage";
 import BithumbPage from "@/components/pages/BithumbPage";
 import TelegramPage from "@/components/pages/TelegramPage";
 import NewsPage from "@/components/pages/NewsPage";
+import KrxCollectPage from "@/components/pages/KrxCollectPage";
 
 export default function HomeContainer() {
-  const [activeTab, setActiveTab] = useState<TabType>("KOSPI");
+  const [activeTab, setActiveTab] = useState<TabType>("BITHUMB");
 
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
@@ -18,16 +17,14 @@ export default function HomeContainer() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case "KOSPI":
-        return <KospiPage />;
-      case "KOSDAQ":
-        return <KosdaqPage />;
       case "BITHUMB":
         return <BithumbPage />;
       case "TELEGRAM":
         return <TelegramPage />;
       case "NEWS":
         return <NewsPage />;
+      case "KRX":
+        return <KrxCollectPage />;
       default:
         return null;
     }

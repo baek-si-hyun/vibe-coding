@@ -175,7 +175,7 @@ class NewsService:
         }
 
     @staticmethod
-    def crawl_api_resume(sources: Optional[List[str]] = None) -> Dict:
+    def crawl_api_resume(sources: Optional[List[str]] = None, reset: bool = False) -> Dict:
         if sources is None:
             sources = ["daum", "naver"]
         total_saved = 0
@@ -187,7 +187,7 @@ class NewsService:
         for source in sources:
             if source not in ["naver", "daum"]:
                 continue
-            r = run_crawl_api(source=source, workers=6, reset=False, max_pages=0)
+            r = run_crawl_api(source=source, workers=6, reset=reset, max_pages=0)
             if r.get("error"):
                 err_msg = r["error"]
                 errors.append(f"{source}: {err_msg}")

@@ -26,6 +26,8 @@ def _load_endpoints() -> dict:
     return {
         "kospi_daily": {"url": f"{base}/sto/stk_bydd_trd", "name": "유가증권 일별매매정보"},
         "kosdaq_daily": {"url": f"{base}/sto/ksq_bydd_trd", "name": "코스닥 일별매매정보"},
+        "kospi_basic": {"url": f"{base}/sto/stk_isu_base_info", "name": "유가증권 종목기본정보"},
+        "kosdaq_basic": {"url": f"{base}/sto/ksq_isu_base_info", "name": "코스닥 종목기본정보"},
     }
 
 

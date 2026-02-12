@@ -69,11 +69,10 @@ export const UI_LABELS = {
       "최근 주목받는 섹터와 테마를 모멘텀 점수로 정리하고, 시가총액 상위 종목을 함께 보여줍니다.",
   },
   TABS: {
-    KOSPI: "코스피",
-    KOSDAQ: "코스닥",
     BITHUMB: "빗썸",
     TELEGRAM: "텔레그램",
     NEWS: "뉴스 크롤링",
+    KRX: "KRX 데이터",
   },
   MOMENTUM: {
     LABEL: "모멘텀",

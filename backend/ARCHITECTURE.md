@@ -54,7 +54,7 @@ backend/
 ### KRX API
 - `GET /api/endpoints` - 사용 가능한 API 목록
 - `GET /api/<api_id>` - KRX 데이터 조회
-- `POST /api/collect` - KRX API 호출 후 CSV 저장 (lstm/data/krx/)
+- `POST /api/collect` - KRX API 호출 후 CSV 저장 (API별: lstm/data/{api_id}/)
 
 ### 뉴스 API
 - `GET/POST /api/news` - 뉴스 검색
@@ -66,7 +66,8 @@ backend/
 
 | 스크립트 | 용도 |
 |----------|------|
-| krx_collect.py | KRX API 수집 → lstm/data/krx/ CSV 저장 |
+| krx_collect.py | KRX API 수집 → lstm/data/{api_id}/ (API별 폴더) |
+| consolidate_krx_stock_data.py | 기존 KRX CSV/JSON → lstm/data/kospi_daily, kosdaq_daily 통합 |
 | crawl_daum_list.py | 뉴스 API 수집 → news_merged.csv |
 | chat_export_to_csv.py | ChatExport HTML → telegram_chats CSV 변환 |
 | add_keywords_to_csv.py | news/telegram CSV에 keyword 칼럼 추가 |
