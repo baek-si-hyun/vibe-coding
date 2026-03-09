@@ -72,6 +72,8 @@ export const UI_LABELS = {
     BITHUMB: "빗썸",
     TELEGRAM: "텔레그램",
     NEWS: "뉴스 크롤링",
+    QUANT: "퀀트 리포트",
+    DART: "DART API",
     KRX: "KRX 데이터",
   },
   MOMENTUM: {

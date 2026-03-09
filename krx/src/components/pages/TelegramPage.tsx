@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 
 type TelegramSavedItem = {
@@ -33,7 +33,7 @@ type SendCodeResponse = {
   error?: string;
 };
 
-const API_BASE = "http://localhost:5001/api/telegram";
+const API_BASE = `${process.env.NEXT_PUBLIC_BACKEND_BASE ?? "http://localhost:5002"}/api/telegram`;
 const PAGE_SIZE = 50;
 
 export default function TelegramPage() {
@@ -50,6 +50,7 @@ export default function TelegramPage() {
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [filterInput, setFilterInput] = useState("");
+  const [chatFilter, setChatFilter] = useState<string | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -61,6 +62,16 @@ export default function TelegramPage() {
     },
     staleTime: 5 * 60 * 1000,
     retry: false,
+  });
+
+  const { data: chatRoomsData } = useQuery({
+    queryKey: ["telegram-chat-rooms"],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/chat-rooms`);
+      if (!res.ok) throw new Error("채팅방 목록을 불러오지 못했습니다.");
+      return res.json() as Promise<{ chatRooms: string[] }>;
+    },
+    staleTime: 2 * 60 * 1000,
   });
 
   const needsAuth =
@@ -79,13 +90,14 @@ export default function TelegramPage() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery<ItemsPageResponse>({
-    queryKey: ["telegram-items", filter],
+    queryKey: ["telegram-items", filter, chatFilter],
     queryFn: async ({ pageParam = 1 }) => {
       const params = new URLSearchParams({
         page: String(pageParam),
         limit: String(PAGE_SIZE),
       });
       if (filter) params.set("q", filter);
+      if (chatFilter) params.set("chat", chatFilter);
       const res = await fetch(`${API_BASE}/items?${params}`);
       if (!res.ok) throw new Error("저장된 데이터를 불러오지 못했습니다.");
       return res.json();
@@ -215,7 +227,7 @@ export default function TelegramPage() {
       setRefreshMessage(
         `✅ ${saveData.message}\n(총 ${saveData.total}건, 신규 ${saveData.added}건)`,
       );
-      queryClient.invalidateQueries({ queryKey: ["telegram-items", filter] });
+      queryClient.invalidateQueries({ queryKey: ["telegram-items", filter, chatFilter] });
     } catch (error) {
       setRefreshMessage(
         error instanceof Error ? error.message : "불러오기 중 오류가 발생했습니다.",
@@ -388,6 +400,37 @@ export default function TelegramPage() {
           >
             검색
           </button>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-gray-700">채팅방 필터</span>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setChatFilter(null)}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                chatFilter === null
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              전체
+            </button>
+            {(chatRoomsData?.chatRooms ?? []).map((room) => (
+              <button
+                key={room}
+                type="button"
+                onClick={() => setChatFilter(room)}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                  chatFilter === room
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                {room}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex flex-col gap-3">

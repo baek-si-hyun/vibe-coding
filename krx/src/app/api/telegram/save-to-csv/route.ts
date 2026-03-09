@@ -118,10 +118,10 @@ function loadExistingLinks(csvPath: string): Set<string> {
 
 function getTelegramChatsDir(): string {
   const base = process.cwd();
-  const fromKrx = path.join(base, "..", "backend", "lstm", "data", "telegram_chats");
-  const fromRoot = path.join(base, "backend", "lstm", "data", "telegram_chats");
-  const backendFromRoot = path.join(base, "backend");
-  const dir = fs.existsSync(backendFromRoot)
+  const fromKrx = path.join(base, "..", "backend-go", "data", "telegram_chats");
+  const fromRoot = path.join(base, "backend-go", "data", "telegram_chats");
+  const backendGoFromRoot = path.join(base, "backend-go");
+  const dir = fs.existsSync(backendGoFromRoot)
     ? path.resolve(fromRoot)
     : path.resolve(fromKrx);
   if (!fs.existsSync(dir)) {
@@ -189,8 +189,10 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}));
     const freshStart = body.freshStart === true;
-    const chatIds = Array.isArray(body.chatIds)
-      ? body.chatIds.filter((id: unknown) => Number.isFinite(Number(id)))
+    const chatIds: Array<number | string> = Array.isArray(body.chatIds)
+      ? body.chatIds.filter(
+          (id: unknown): id is number | string => Number.isFinite(Number(id)),
+        )
       : [];
 
     type ChatTarget = { id: number; title: string };
@@ -199,7 +201,7 @@ export async function POST(request: NextRequest) {
       const chats = await getTelegramChats(config, 200);
       const chatMap = new Map<number, string>();
       if (chats) for (const c of chats) chatMap.set(c.id, c.title || "");
-      const mapped = chatIds.map((id) => ({
+      const mapped = chatIds.map((id: number | string) => ({
         id: Number(id),
         title: chatMap.get(Number(id)) || `chat_${id}`,
       }));
@@ -221,22 +223,21 @@ export async function POST(request: NextRequest) {
     const progressPath = getProgressPath();
     const progress = loadProgress(progressPath, freshStart);
     const resumed = !freshStart && Object.keys(progress.offsets).length > 0;
-    const skippedChats = resumed
-      ? Object.values(progress.offsets).filter((v) => v === "done").length
-      : 0;
 
     let totalFetched = 0;
     let totalAdded = 0;
 
     for (const chat of targetChats) {
       const saved = progress.offsets[String(chat.id)];
-      if (saved === "done") continue;
+      const incrementalMode = saved === "done";
 
       let offsetId: number | undefined;
-      if (typeof saved === "number" && saved > 0) offsetId = saved;
+      if (!incrementalMode && typeof saved === "number" && saved > 0) {
+        offsetId = saved;
+      }
       let hasMore = true;
 
-      progress.offsets[String(chat.id)] = offsetId ?? 0;
+      progress.offsets[String(chat.id)] = incrementalMode ? "done" : (offsetId ?? 0);
       saveProgress(progressPath, progress);
 
       const csvPath = getChatCsvPath(chat.title);
@@ -263,6 +264,7 @@ export async function POST(request: NextRequest) {
         await sleep(API_DELAY_SEC * 1000);
 
         totalFetched += messages.length;
+        let addedInBatch = 0;
 
         for (const msg of messages) {
           const chatTitle = (msg.chatTitle || "").trim() || chat.title;
@@ -276,14 +278,28 @@ export async function POST(request: NextRequest) {
             for (const l of links) existingLinks.add(l);
             stream.write(toCsvLine(row));
             totalAdded++;
+            addedInBatch++;
           }
         }
 
-        if (messages.length < BATCH_LIMIT) {
+        const nextOffset = messages[messages.length - 1]?.id;
+        const isLastPage = messages.length < BATCH_LIMIT || nextOffset == null;
+
+        // "done" 상태 채팅도 매번 최신 메시지를 확인한다.
+        // 신규 저장이 더 이상 없으면 증분 동기화를 종료한다.
+        if (incrementalMode) {
+          if (isLastPage || addedInBatch === 0) {
+            progress.offsets[String(chat.id)] = "done";
+            hasMore = false;
+          } else {
+            offsetId = nextOffset;
+            progress.offsets[String(chat.id)] = offsetId;
+          }
+        } else if (isLastPage) {
           progress.offsets[String(chat.id)] = "done";
           hasMore = false;
         } else {
-          offsetId = messages[messages.length - 1]?.id;
+          offsetId = nextOffset;
           if (offsetId == null) {
             progress.offsets[String(chat.id)] = "done";
             hasMore = false;
@@ -304,10 +320,9 @@ export async function POST(request: NextRequest) {
     // 완료해도 progress 파일 유지 (이어하기, 재시작 시 상태 확인용)
     const relativePath = path.relative(process.cwd(), chatsDir);
 
-    const msg =
-      resumed && skippedChats > 0
-        ? `이어서 진행 완료. ${skippedChats}개 채팅 스킵, ${totalAdded}건 신규 저장 (총 ${totalFetched}건 조회)`
-        : `텔레그램 메시지 수집 완료. ${totalAdded}건 신규 저장 (총 ${totalFetched}건 조회)`;
+    const msg = freshStart
+      ? `텔레그램 메시지 수집 완료. ${totalAdded}건 신규 저장 (총 ${totalFetched}건 조회)`
+      : `텔레그램 동기화 완료. ${totalAdded}건 신규 저장 (총 ${totalFetched}건 조회)`;
 
     return NextResponse.json({
       success: true,
@@ -317,7 +332,7 @@ export async function POST(request: NextRequest) {
       savedPath: relativePath,
       filename: "telegram_chats/*.csv",
       resumed,
-      skippedChats: resumed ? skippedChats : 0,
+      skippedChats: 0,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -327,4 +342,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

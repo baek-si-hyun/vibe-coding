@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from "react";
-import { io, Socket } from "socket.io-client";
+import { useEffect, useMemo, useState } from "react";
 
 type ScreenerMode = "volume" | "ma7" | "ma20" | "pattern";
 
@@ -61,19 +60,20 @@ const MODES: Array<{
   },
 ];
 
+const BACKEND_BASE = process.env.NEXT_PUBLIC_BACKEND_BASE ?? "http://localhost:5002";
+const API_BASE = `${BACKEND_BASE}/api/bithumb/screener`;
+const AUTO_REFRESH_MS = 30_000;
+
 export default function BithumbMarketScreener() {
   const [mode, setMode] = useState<ScreenerMode>("volume");
   const [data, setData] = useState<ScreenerResponse | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [refreshIndex, setRefreshIndex] = useState(0);
-  const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   const buildBithumbUrl = (symbol: string) =>
     `https://www.bithumb.com/trade/order/${symbol}_KRW`;
-
-  const activeMode = MODES.find((item) => item.id === mode) ?? MODES[0];
 
   const priceFormatter = useMemo(
     () =>
@@ -115,67 +115,27 @@ export default function BithumbMarketScreener() {
   );
 
   useEffect(() => {
-    setStatus("loading");
-    setErrorMessage(null);
+    let stopped = false;
 
-    const socket = io("http://localhost:5001", {
-      transports: ["polling"],
-    });
-
-    socketRef.current = socket;
-
-    socket.on("connect", () => {
-      setIsConnected(true);
-      setStatus("idle");
-      socket.emit("subscribe_bithumb", { mode });
-    });
-
-    socket.on("disconnect", () => {
-      setIsConnected(false);
-      setStatus("error");
-      setErrorMessage("연결이 끊어졌습니다. 재연결 중...");
-    });
-
-    socket.on("connect_error", () => {
-      setIsConnected(false);
-      setStatus("error");
-      setErrorMessage("서버에 연결할 수 없습니다.");
-    });
-
-    const eventName = `bithumb_${mode}`;
-    socket.on(eventName, (payload: ScreenerResponse) => {
-      if (payload.mode === mode) {
-        setData(payload);
-        setStatus("idle");
-        setErrorMessage(null);
+    const load = async (showLoading: boolean) => {
+      if (showLoading) {
+        setStatus("loading");
       }
-    });
-
-    socket.emit("subscribe_bithumb", { mode });
-
-    return () => {
-      socket.emit("unsubscribe_bithumb", {});
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, [mode]);
-
-  useEffect(() => {
-    if (refreshIndex === 0) return;
-
-    const load = async () => {
       try {
-        const response = await fetch(
-          `http://localhost:5001/api/bithumb/screener?mode=${mode}`,
-        );
+        const response = await fetch(`${API_BASE}?mode=${mode}`);
         if (!response.ok) {
           throw new Error(`API error: ${response.status} ${response.statusText}`);
         }
         const payload = (await response.json()) as ScreenerResponse;
+        if (stopped) return;
         setData(payload);
         setStatus("idle");
+        setErrorMessage(null);
+        setIsConnected(true);
       } catch (error) {
+        if (stopped) return;
         setStatus("error");
+        setIsConnected(false);
         setErrorMessage(
           error instanceof Error
             ? error.message
@@ -183,8 +143,17 @@ export default function BithumbMarketScreener() {
         );
       }
     };
-    void load();
-  }, [refreshIndex, mode]);
+
+    void load(true);
+    const timer = window.setInterval(() => {
+      void load(false);
+    }, AUTO_REFRESH_MS);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [mode, refreshIndex]);
 
   const isVolume = mode === "volume";
   const isPattern = mode === "pattern";
@@ -211,7 +180,7 @@ export default function BithumbMarketScreener() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="w-full px-4 py-8 sm:px-6 lg:px-8">
         <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex flex-col gap-6 mb-6">
             <div className="flex flex-wrap gap-3">
@@ -244,7 +213,7 @@ export default function BithumbMarketScreener() {
                   {isConnected ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-green-700 bg-green-100 rounded-full">
                       <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                      실시간
+                      자동 갱신
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-red-700 bg-red-100 rounded-full">
@@ -308,7 +277,7 @@ export default function BithumbMarketScreener() {
               </div>
             )}
 
-            {data?.items?.map((item, index) => {
+            {data?.items?.map((item) => {
               const href = buildBithumbUrl(item.symbol);
               const ma7Time = item.signals?.ma7Time;
               const ma20Time = item.signals?.ma20Time;

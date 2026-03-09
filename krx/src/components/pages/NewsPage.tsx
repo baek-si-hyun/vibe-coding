@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 
-const API_BASE = "http://localhost:5001/api/news";
+const BACKEND_BASE = process.env.NEXT_PUBLIC_BACKEND_BASE ?? "http://localhost:5002";
+const API_BASE = process.env.NEXT_PUBLIC_NEWS_API_BASE ?? `${BACKEND_BASE}/api/news`;
 const PAGE_SIZE = 50;
 
 type CrawlStatus = "idle" | "loading" | "success" | "error";
@@ -79,7 +80,7 @@ export default function NewsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sources: ["daum", "naver"],
+          sources: ["daum", "naver", "newsapi"],
           reset,
         }),
       });
@@ -94,6 +95,8 @@ export default function NewsPage() {
       const added = result.added ?? 0;
       const totalRes = result.total ?? 0;
       const rateLimited = result.rate_limited ?? false;
+      const keywordCount = result.keyword_count ?? 0;
+      const keywordScope = result.keyword_scope ?? "KOSPI/KOSDAQ 시총 1조 이상 종목명";
       const sourceResults = result.source_results ?? [];
       const skipped = result.skipped ?? [];
       const ranSources = sourceResults
@@ -110,9 +113,9 @@ export default function NewsPage() {
         : `수집 완료! 이번에 ${added}건 추가되어, 총 ${totalRes}건이 저장되었습니다.`;
       setMessage(
         ranSources.length > 0 && skipped.length > 0
-          ? `${baseMsg} [실행: ${ranSources.join(", ")} | 건너뜀: ${skippedInfo}]`
+          ? `${baseMsg} [대상: ${keywordScope} ${keywordCount}개 | 실행: ${ranSources.join(", ")} | 건너뜀: ${skippedInfo}]`
           : ranSources.length > 0
-            ? `${baseMsg} [실행: ${ranSources.join(", ")}]`
+            ? `${baseMsg} [대상: ${keywordScope} ${keywordCount}개 | 실행: ${ranSources.join(", ")}]`
             : baseMsg
       );
       setProgress("");
@@ -145,9 +148,9 @@ export default function NewsPage() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-4">뉴스 수집</h1>
         <p className="text-gray-600 mb-6">
-          네이버·다음 API로 뉴스를 수집합니다. <strong>불러오기</strong>는
-          lstm/data/news/crawl_list_progress.json을 참고해 끊겼던 키워드부터 이어서 가져옵니다.
-          <strong>처음부터</strong>는 progress를 초기화한 뒤 처음부터 수집합니다.
+          네이버·다음·NewsAPI로 국내 코스피·코스닥 상장 종목 중 시가총액 1조원 이상 종목명만 수집합니다.
+          <strong>불러오기</strong>는 backend-go/data/news/crawl_list_progress.json을 참고해 끊겼던 종목부터 이어서 가져옵니다.
+          <strong>처음부터</strong>는 progress를 초기화한 뒤 현재 1조 이상 유니버스 전체를 다시 수집합니다.
         </p>
 
         <div className="space-y-4">

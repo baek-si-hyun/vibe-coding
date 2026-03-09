@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3001",
+    "dev": "NODE_OPTIONS=--max-old-space-size=3072 next dev --webpack -p 3001",
+    "dev:turbo": "next dev -p 3001",
     "dev:full": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
-    "dev:frontend": "next dev -p 3001",
-    "dev:backend": "cd ../backend && bash run.sh",
+    "dev:frontend": "NODE_OPTIONS=--max-old-space-size=3072 next dev --webpack -p 3001",
+    "dev:backend": "cd ../backend-go && bash run.sh",
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "eslint"
@@ -19,7 +20,6 @@
     "next": "16.1.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "socket.io-client": "^4.8.3",
     "telegram": "^2.26.22"
   },
   "devDependencies": {

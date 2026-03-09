@@ -1,5 +1,12 @@
 export type Market = "KOSPI" | "KOSDAQ";
-export type TabType = "BITHUMB" | "TELEGRAM" | "NEWS" | "KRX";
+export type KrxAPITabType = `KRX_API:${string}`;
+export type TabType =
+  | "BITHUMB"
+  | "TELEGRAM"
+  | "NEWS"
+  | "QUANT"
+  | "DART"
+  | KrxAPITabType;
 export type Category = "sector" | "theme";
 export type NewsSource = "naver" | "daum" | "newsapi";
 

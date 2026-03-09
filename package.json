@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "cd krx && npm run dev",
-    "dev:backend": "cd backend && bash run.sh",
+    "dev:backend": "cd backend-go && bash run.sh",
     "build": "cd krx && npm run build",
     "start": "cd krx && npm run start"
   },
