@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 
-const BACKEND_BASE = process.env.NEXT_PUBLIC_BACKEND_BASE ?? "http://localhost:5002";
-const API_BASE = process.env.NEXT_PUBLIC_NEWS_API_BASE ?? `${BACKEND_BASE}/api/news`;
 const PAGE_SIZE = 50;
+const NEWS_ITEMS_API = "/api/news/items";
+const NEWS_CRAWL_RESUME_API = "/api/news/crawl/resume";
 
 type CrawlStatus = "idle" | "loading" | "success" | "error";
 
@@ -50,8 +50,11 @@ export default function NewsPage() {
         limit: String(PAGE_SIZE),
       });
       if (filter) params.set("q", filter);
-      const res = await fetch(`${API_BASE}/items?${params}`);
-      if (!res.ok) throw new Error("뉴스 목록을 불러오지 못했습니다.");
+      const res = await fetch(`${NEWS_ITEMS_API}?${params.toString()}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || data.message || "뉴스 목록을 불러오지 못했습니다.");
+      }
       return res.json();
     },
     initialPageParam: 1,
@@ -76,7 +79,7 @@ export default function NewsPage() {
     );
 
     try {
-      const response = await fetch(`${API_BASE}/crawl/resume`, {
+      const response = await fetch(NEWS_CRAWL_RESUME_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -235,7 +238,9 @@ export default function NewsPage() {
         )}
         {listError && (
           <p className="text-red-600 py-4">
-            목록을 불러오지 못했습니다. 크롤링 후 불러오기를 실행해 주세요.
+            {listError instanceof Error
+              ? listError.message
+              : "목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."}
           </p>
         )}
         {!isLoadingList && !listError && items.length === 0 && (

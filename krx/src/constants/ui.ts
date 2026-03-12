@@ -69,7 +69,9 @@ export const UI_LABELS = {
       "최근 주목받는 섹터와 테마를 모멘텀 점수로 정리하고, 시가총액 상위 종목을 함께 보여줍니다.",
   },
   TABS: {
+    COIN: "코인 퀀트",
     BITHUMB: "빗썸",
+    UPBIT: "업비트",
     TELEGRAM: "텔레그램",
     NEWS: "뉴스 크롤링",
     QUANT: "퀀트 리포트",

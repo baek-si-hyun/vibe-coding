@@ -28,6 +28,7 @@ func NewRouter(application *app.App) http.Handler {
 	mux.HandleFunc("/api/dart/export/financials", h.DartExportFinancials)
 
 	mux.HandleFunc("/api/bithumb/screener", h.BithumbScreener)
+	mux.HandleFunc("/api/upbit/screener", h.UpbitScreener)
 	mux.HandleFunc("/api/telegram/chat-rooms", h.TelegramChatRooms)
 	mux.HandleFunc("/api/telegram/items", h.TelegramItems)
 

@@ -12,6 +12,8 @@ func (h *Handlers) QuantRank(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.ensureQuantSync(r)
+
 	q := r.URL.Query()
 	result, err := h.app.Quant.Rank(
 		q.Get("market"),
@@ -31,6 +33,8 @@ func (h *Handlers) QuantReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.ensureQuantSync(r)
+
 	q := r.URL.Query()
 	result, err := h.app.Quant.Report(
 		q.Get("market"),
@@ -49,6 +53,8 @@ func (h *Handlers) QuantMacro(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "Method not allowed"})
 		return
 	}
+
+	h.ensureQuantSync(r)
 
 	result, err := h.app.Quant.Macro()
 	if err != nil {

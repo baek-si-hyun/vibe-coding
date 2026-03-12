@@ -19,6 +19,7 @@ const (
 	paymentCurrency         = "KRW"
 	concurrency             = 8
 	maxResults              = 50
+	quantCacheTTL           = 30 * time.Second
 	volumeSpikeRatio        = 5.0
 	patternVolumeWindow     = 20
 	patternVolumeSpikeRatio = 3.0
@@ -56,15 +57,23 @@ type Item struct {
 	Signals      *Signals `json:"signals,omitempty"`
 }
 
+type cacheEntry struct {
+	expiresAt time.Time
+	result    map[string]any
+}
+
 type Service struct {
-	cfg    config.Config
-	client *http.Client
+	cfg        config.Config
+	client     *http.Client
+	quantCache map[string]cacheEntry
+	mu         sync.RWMutex
 }
 
 func NewService(cfg config.Config) *Service {
 	return &Service{
-		cfg:    cfg,
-		client: &http.Client{Timeout: 30 * time.Second},
+		cfg:        cfg,
+		client:     &http.Client{Timeout: 30 * time.Second},
+		quantCache: map[string]cacheEntry{},
 	}
 }
 

@@ -1,7 +1,7 @@
 export type Market = "KOSPI" | "KOSDAQ";
 export type KrxAPITabType = `KRX_API:${string}`;
 export type TabType =
-  | "BITHUMB"
+  | "COIN"
   | "TELEGRAM"
   | "NEWS"
   | "QUANT"

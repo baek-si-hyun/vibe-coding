@@ -2,6 +2,7 @@ package news
 
 import (
 	"fmt"
+	"hash/fnv"
 	"strings"
 	"unicode/utf8"
 )
@@ -22,6 +23,77 @@ type crawlTask struct {
 	ID       string
 	Query    string
 	Keywords []string
+}
+
+func normalizeSources(sources []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(sources))
+	for _, source := range sources {
+		normalized := strings.ToLower(strings.TrimSpace(source))
+		if normalized != "daum" && normalized != "naver" && normalized != "newsapi" {
+			continue
+		}
+		if _, exists := seen[normalized]; exists {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
+	}
+	return out
+}
+
+func buildSourceKeywordAssignments(sources []string, keywords []string, rotationKey string, perSourceCap int) map[string][]string {
+	normalizedSources := normalizeSources(sources)
+	assignments := map[string][]string{}
+	for _, source := range normalizedSources {
+		assignments[source] = []string{}
+	}
+	if len(normalizedSources) == 0 {
+		return assignments
+	}
+
+	normalizedKeywords := normalizeKeywords(keywords)
+	if len(normalizedKeywords) == 0 {
+		return assignments
+	}
+
+	for idx, keyword := range normalizedKeywords {
+		source := normalizedSources[idx%len(normalizedSources)]
+		assignments[source] = append(assignments[source], keyword)
+	}
+
+	if perSourceCap <= 0 {
+		return assignments
+	}
+
+	for _, source := range normalizedSources {
+		assignments[source] = rotateKeywordWindow(assignments[source], perSourceCap, source+"|"+strings.TrimSpace(rotationKey))
+	}
+
+	return assignments
+}
+
+func rotateKeywordWindow(keywords []string, cap int, key string) []string {
+	if cap <= 0 || len(keywords) <= cap {
+		return append([]string{}, keywords...)
+	}
+
+	offset := deterministicOffset(key, len(keywords))
+	out := make([]string, 0, cap)
+	for i := 0; i < cap; i++ {
+		index := (offset + i) % len(keywords)
+		out = append(out, keywords[index])
+	}
+	return out
+}
+
+func deterministicOffset(key string, mod int) int {
+	if mod <= 0 {
+		return 0
+	}
+	hasher := fnv.New32a()
+	_, _ = hasher.Write([]byte(strings.TrimSpace(key)))
+	return int(hasher.Sum32() % uint32(mod))
 }
 
 func normalizeKeywords(keywords []string) []string {

@@ -5,6 +5,7 @@ const BACKEND_BASE =
   process.env.BACKEND_URL ||
   "http://localhost:5002";
 const MIN_MARKET_CAP = 1_000_000_000_000;
+const MAX_RECOMMENDATIONS = 3;
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +19,11 @@ export async function GET(request: NextRequest) {
       searchParams.get("minMarketCap")?.trim();
 
     if (market) url.searchParams.set("market", market);
-    if (limit) url.searchParams.set("limit", limit);
+    const parsedLimit = Number.parseInt(limit ?? "", 10);
+    const normalizedLimit = Number.isFinite(parsedLimit)
+      ? Math.max(1, Math.min(parsedLimit, MAX_RECOMMENDATIONS))
+      : MAX_RECOMMENDATIONS;
+    url.searchParams.set("limit", String(normalizedLimit));
     const parsedMinMarketCap = Number.parseInt((minMarketCap ?? "").replace(/[^0-9]/g, ""), 10);
     const normalizedMinMarketCap = Number.isFinite(parsedMinMarketCap)
       ? Math.max(parsedMinMarketCap, MIN_MARKET_CAP)

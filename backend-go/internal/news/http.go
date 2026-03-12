@@ -29,6 +29,27 @@ func NewHandler(service *Service) http.Handler {
 		httpx.WriteJSON(w, http.StatusOK, result)
 	})
 
+	mux.HandleFunc("/api/news/backfill", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			httpx.WriteJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "Method not allowed"})
+			return
+		}
+
+		var body struct {
+			Sources           []string `json:"sources"`
+			TradingDays       int      `json:"tradingDays"`
+			TargetTradingDate string   `json:"targetTradingDate"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+
+		result := service.BackfillRecentTradingDays(body.TargetTradingDate, body.TradingDays, body.Sources)
+		if errMsg, ok := result["error"].(string); ok && errMsg != "" {
+			httpx.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": errMsg})
+			return
+		}
+		httpx.WriteJSON(w, http.StatusOK, result)
+	})
+
 	mux.HandleFunc("/api/news/files", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			httpx.WriteJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "Method not allowed"})

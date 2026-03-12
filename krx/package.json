@@ -20,7 +20,8 @@
     "next": "16.1.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "telegram": "^2.26.22"
+    "telegram": "^2.26.22",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@tanstack/react-query-devtools": "^5.62.11",

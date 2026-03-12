@@ -1,12 +1,17 @@
 package news
 
 type NewsItem struct {
-	Title       string `json:"title"`
-	Link        string `json:"link"`
-	Description string `json:"description"`
-	PubDate     string `json:"pubDate"`
-	Keyword     string `json:"keyword,omitempty"`
-	Press       string `json:"press,omitempty"`
+	Title        string `json:"title"`
+	Link         string `json:"link"`
+	Description  string `json:"description"`
+	PubDate      string `json:"pubDate"`
+	PublishedAt  string `json:"publishedAt,omitempty"`
+	RawPubDate   string `json:"rawPubDate,omitempty"`
+	QualityTier  string `json:"qualityTier,omitempty"`
+	QualityScore int    `json:"qualityScore,omitempty"`
+	QualityFlags string `json:"qualityFlags,omitempty"`
+	Keyword      string `json:"keyword,omitempty"`
+	Press        string `json:"press,omitempty"`
 }
 
 type FetchResult struct {

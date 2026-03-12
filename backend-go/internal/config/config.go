@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type APIEndpoint struct {
@@ -15,27 +17,42 @@ type APIEndpoint struct {
 }
 
 type Config struct {
-	Host               string
-	Port               string
-	BackendDir         string
-	DataRootDir        string
-	DataDir            string
-	TelegramDataDir    string
-	NaverClientID      string
-	NaverClientSecret  string
-	KakaoRestAPIKey    string
-	NewsAPIKey         string
-	DARTFSSAPIKey      string
-	DARTAPIBaseURL     string
-	KRXAPIKey          string
-	FREDAPIKey         string
-	EIAAPIKey          string
-	TwelveDataAPIKey   string
-	PolygonAPIKey      string
-	AlphaVantageAPIKey string
-	MetalsAPIKey       string
-	ExchangeRateAPIKey string
-	APIEndpoints       map[string]APIEndpoint
+	Host                       string
+	Port                       string
+	BackendDir                 string
+	ProjectRootDir             string
+	DataRootDir                string
+	DataDir                    string
+	TelegramDataDir            string
+	NaverClientID              string
+	NaverClientSecret          string
+	KakaoRestAPIKey            string
+	NewsAPIKey                 string
+	DARTFSSAPIKey              string
+	DARTAPIBaseURL             string
+	KRXAPIKey                  string
+	FREDAPIKey                 string
+	EIAAPIKey                  string
+	TwelveDataAPIKey           string
+	PolygonAPIKey              string
+	AlphaVantageAPIKey         string
+	MetalsAPIKey               string
+	ExchangeRateAPIKey         string
+	LSTMPredictionsPath        string
+	LSTMTuningPath             string
+	LSTMBatchScriptPath        string
+	LSTMMinPredictionCount     int
+	LSTMWeight                 float64
+	SyncStatePath              string
+	AutoQuantSync              bool
+	AutoQuantSyncStartup       bool
+	AutoQuantRequestSync       bool
+	AutoQuantSyncMidnightTime  string
+	AutoQuantSyncPreMarketTime string
+	NewsBackfillTradingDays    int
+	NewsSourceKeywordCap       int
+	NewsQualityMinTier         string
+	APIEndpoints               map[string]APIEndpoint
 }
 
 func Load() Config {
@@ -54,29 +71,96 @@ func Load() Config {
 	} else {
 		dataRoot = absOrClean(dataRoot)
 	}
+	lstmPredictionsPath := strings.TrimSpace(os.Getenv("LSTM_PREDICTIONS_FILE"))
+	if lstmPredictionsPath == "" {
+		lstmPredictionsPath = filepath.Join(dataRoot, "quant", "lstm_predictions_latest.json")
+	} else {
+		lstmPredictionsPath = absOrClean(lstmPredictionsPath)
+	}
+	lstmTuningPath := strings.TrimSpace(os.Getenv("LSTM_TUNING_FILE"))
+	if lstmTuningPath == "" {
+		lstmTuningPath = filepath.Join(dataRoot, "quant", "lstm_tuning_latest.json")
+	} else {
+		lstmTuningPath = absOrClean(lstmTuningPath)
+	}
+	lstmBatchScriptPath := strings.TrimSpace(os.Getenv("LSTM_BATCH_SCRIPT_FILE"))
+	if lstmBatchScriptPath == "" {
+		lstmBatchScriptPath = filepath.Join(projectRoot, "lstm", "run_batch_export.sh")
+	} else {
+		lstmBatchScriptPath = absOrClean(lstmBatchScriptPath)
+	}
+	syncStatePath := strings.TrimSpace(os.Getenv("SYNC_STATE_FILE"))
+	if syncStatePath == "" {
+		syncStatePath = filepath.Join(dataRoot, "ops", "sync_state.json")
+	} else {
+		syncStatePath = absOrClean(syncStatePath)
+	}
+	lstmWeight := clampFloat(getenvFloatDefault("LSTM_WEIGHT", 0.12), 0, 0.35)
+	lstmMinPredictionCount := getenvIntDefault("LSTM_MIN_PREDICTION_COUNT", 100)
+	if lstmMinPredictionCount < 1 {
+		lstmMinPredictionCount = 1
+	}
+	autoQuantSync := getenvBoolDefault("AUTO_QUANT_SYNC", true)
+	autoQuantSyncStartup := getenvBoolDefault("AUTO_QUANT_SYNC_STARTUP", false)
+	autoQuantRequestSync := getenvBoolDefault("AUTO_QUANT_REQUEST_SYNC", false)
+	autoQuantSyncMidnightTime := normalizeClockTime(
+		firstNonEmpty(strings.TrimSpace(os.Getenv("AUTO_QUANT_SYNC_MIDNIGHT_TIME")), strings.TrimSpace(os.Getenv("AUTO_QUANT_SYNC_POST_CLOSE_TIME"))),
+		"00:00",
+	)
+	autoQuantSyncPreMarketTime := normalizeClockTime(os.Getenv("AUTO_QUANT_SYNC_PREMARKET_TIME"), "07:50")
+	newsBackfillTradingDays := getenvIntDefault("NEWS_BACKFILL_TRADING_DAYS", 2)
+	if newsBackfillTradingDays < 1 {
+		newsBackfillTradingDays = 1
+	}
+	if newsBackfillTradingDays > 30 {
+		newsBackfillTradingDays = 30
+	}
+	newsSourceKeywordCap := getenvIntDefault("NEWS_SOURCE_KEYWORD_CAP", 60)
+	if newsSourceKeywordCap < 1 {
+		newsSourceKeywordCap = 1
+	}
+	if newsSourceKeywordCap > 300 {
+		newsSourceKeywordCap = 300
+	}
+	newsQualityMinTier := normalizeTier(os.Getenv("NEWS_QUALITY_MIN_TIER"), "high")
 
 	return Config{
-		Host:               host,
-		Port:               port,
-		BackendDir:         backendDir,
-		DataRootDir:        dataRoot,
-		DataDir:            filepath.Join(dataRoot, "news"),
-		TelegramDataDir:    filepath.Join(dataRoot, "telegram_chats"),
-		NaverClientID:      strings.TrimSpace(os.Getenv("NAVER_CLIENT_ID")),
-		NaverClientSecret:  strings.TrimSpace(os.Getenv("NAVER_CLIENT_SECRET")),
-		KakaoRestAPIKey:    strings.TrimSpace(os.Getenv("KAKAO_REST_API_KEY")),
-		NewsAPIKey:         strings.TrimSpace(getenvDefault("NEWSAPI_KEY", os.Getenv("NEXT_PUBLIC_NEWSAPI_API_KEY"))),
-		DARTFSSAPIKey:      strings.TrimSpace(os.Getenv("DART_FSS_API_KEY")),
-		DARTAPIBaseURL:     strings.TrimSpace(getenvDefault("DART_API_BASE_URL", "https://opendart.fss.or.kr/api")),
-		KRXAPIKey:          strings.TrimSpace(getenvDefault("KRX_API_KEY", os.Getenv("KRX_OPENAPI_KEY"))),
-		FREDAPIKey:         strings.TrimSpace(os.Getenv("FRED_API_KEY")),
-		EIAAPIKey:          strings.TrimSpace(os.Getenv("EIA_API_KEY")),
-		TwelveDataAPIKey:   strings.TrimSpace(os.Getenv("TWELVE_DATA_API_KEY")),
-		PolygonAPIKey:      strings.TrimSpace(os.Getenv("POLYGON_API_KEY")),
-		AlphaVantageAPIKey: strings.TrimSpace(os.Getenv("ALPHA_VANTAGE_API_KEY")),
-		MetalsAPIKey:       strings.TrimSpace(os.Getenv("METALS_API_KEY")),
-		ExchangeRateAPIKey: strings.TrimSpace(getenvDefault("EXCHANGERATE_HOST_API_KEY", os.Getenv("EXCHANGE_RATE_API_KEY"))),
-		APIEndpoints:       loadAPIEndpoints(),
+		Host:                       host,
+		Port:                       port,
+		BackendDir:                 backendDir,
+		ProjectRootDir:             projectRoot,
+		DataRootDir:                dataRoot,
+		DataDir:                    filepath.Join(dataRoot, "news"),
+		TelegramDataDir:            filepath.Join(dataRoot, "telegram_chats"),
+		NaverClientID:              strings.TrimSpace(os.Getenv("NAVER_CLIENT_ID")),
+		NaverClientSecret:          strings.TrimSpace(os.Getenv("NAVER_CLIENT_SECRET")),
+		KakaoRestAPIKey:            strings.TrimSpace(os.Getenv("KAKAO_REST_API_KEY")),
+		NewsAPIKey:                 strings.TrimSpace(getenvDefault("NEWSAPI_KEY", os.Getenv("NEXT_PUBLIC_NEWSAPI_API_KEY"))),
+		DARTFSSAPIKey:              strings.TrimSpace(os.Getenv("DART_FSS_API_KEY")),
+		DARTAPIBaseURL:             strings.TrimSpace(getenvDefault("DART_API_BASE_URL", "https://opendart.fss.or.kr/api")),
+		KRXAPIKey:                  strings.TrimSpace(getenvDefault("KRX_API_KEY", os.Getenv("KRX_OPENAPI_KEY"))),
+		FREDAPIKey:                 strings.TrimSpace(os.Getenv("FRED_API_KEY")),
+		EIAAPIKey:                  strings.TrimSpace(os.Getenv("EIA_API_KEY")),
+		TwelveDataAPIKey:           strings.TrimSpace(os.Getenv("TWELVE_DATA_API_KEY")),
+		PolygonAPIKey:              strings.TrimSpace(os.Getenv("POLYGON_API_KEY")),
+		AlphaVantageAPIKey:         strings.TrimSpace(os.Getenv("ALPHA_VANTAGE_API_KEY")),
+		MetalsAPIKey:               strings.TrimSpace(os.Getenv("METALS_API_KEY")),
+		ExchangeRateAPIKey:         strings.TrimSpace(getenvDefault("EXCHANGERATE_HOST_API_KEY", os.Getenv("EXCHANGE_RATE_API_KEY"))),
+		LSTMPredictionsPath:        lstmPredictionsPath,
+		LSTMTuningPath:             lstmTuningPath,
+		LSTMBatchScriptPath:        lstmBatchScriptPath,
+		LSTMMinPredictionCount:     lstmMinPredictionCount,
+		LSTMWeight:                 lstmWeight,
+		SyncStatePath:              syncStatePath,
+		AutoQuantSync:              autoQuantSync,
+		AutoQuantSyncStartup:       autoQuantSyncStartup,
+		AutoQuantRequestSync:       autoQuantRequestSync,
+		AutoQuantSyncMidnightTime:  autoQuantSyncMidnightTime,
+		AutoQuantSyncPreMarketTime: autoQuantSyncPreMarketTime,
+		NewsBackfillTradingDays:    newsBackfillTradingDays,
+		NewsSourceKeywordCap:       newsSourceKeywordCap,
+		NewsQualityMinTier:         newsQualityMinTier,
+		APIEndpoints:               loadAPIEndpoints(),
 	}
 }
 
@@ -182,6 +266,84 @@ func getenvDefault(key, fallback string) string {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
 		return fallback
+	}
+	return value
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func getenvFloatDefault(key string, fallback float64) float64 {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func getenvBoolDefault(key string, fallback bool) bool {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func normalizeClockTime(raw string, fallback string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := time.Parse("15:04", value)
+	if err != nil {
+		return fallback
+	}
+	return parsed.Format("15:04")
+}
+
+func getenvIntDefault(key string, fallback int) int {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func normalizeTier(raw string, fallback string) string {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	switch value {
+	case "high", "medium", "low":
+		return value
+	default:
+		return fallback
+	}
+}
+
+func clampFloat(value, minValue, maxValue float64) float64 {
+	if value < minValue {
+		return minValue
+	}
+	if value > maxValue {
+		return maxValue
 	}
 	return value
 }

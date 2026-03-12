@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"investment-news-go/internal/httpx"
 )
@@ -12,7 +13,21 @@ func (h *Handlers) BithumbScreener(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.app.Bithumb.GetScreenerData(r.URL.Query().Get("mode"))
+	limit := 30
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	minTradeValue24H := 0.0
+	if raw := r.URL.Query().Get("min_trade_value_24h"); raw != "" {
+		if parsed, err := strconv.ParseFloat(raw, 64); err == nil && parsed > 0 {
+			minTradeValue24H = parsed
+		}
+	}
+
+	result, err := h.app.Bithumb.GetQuantData(limit, minTradeValue24H)
 	if err != nil {
 		httpx.WriteJSON(w, http.StatusInternalServerError, map[string]any{
 			"error":   "서버 오류가 발생했습니다.",

@@ -18,6 +18,12 @@ var (
 	pressRe   = regexp.MustCompile(`(?i)([a-z0-9-]+)\.(daum|naver|yonhap|hani|donga|chosun|joongang|mt|mk|hankyung|etnews|yna|khan|hani|sedaily)\.(net|co\.kr|com)`)
 )
 
+type normalizedPublishedTime struct {
+	PubDate     string
+	PublishedAt string
+	RawPubDate  string
+}
+
 func (s *Service) fetchNaverNews(query string, display, start int, sort string) FetchResult {
 	if s.cfg.NaverClientID == "" || s.cfg.NaverClientSecret == "" {
 		return FetchResult{Items: []NewsItem{}, Total: 0, Error: "NAVER_CLIENT_ID/SECRET 미설정"}
@@ -94,12 +100,15 @@ func (s *Service) fetchNaverNews(query string, display, start int, sort string) 
 		if press == "" {
 			press = extractPressFromURL(raw.Original)
 		}
+		published := parsePubDateNaver(raw.PubDate)
 		items = append(items, NewsItem{
 			Title:       stripHTML(raw.Title),
 			Link:        link,
 			Description: stripHTML(raw.Description),
 			Press:       press,
-			PubDate:     parsePubDateNaver(raw.PubDate),
+			PubDate:     published.PubDate,
+			PublishedAt: published.PublishedAt,
+			RawPubDate:  published.RawPubDate,
 		})
 	}
 
@@ -175,12 +184,15 @@ func (s *Service) fetchKakaoWeb(query string, size, page int, sort string) Fetch
 	items := make([]NewsItem, 0, len(payload.Documents))
 	for _, raw := range payload.Documents {
 		link := strings.TrimSpace(raw.URL)
+		published := parsePubDateKakao(raw.DateTime)
 		items = append(items, NewsItem{
 			Title:       stripHTML(raw.Title),
 			Link:        link,
 			Description: stripHTML(raw.Contents),
 			Press:       extractPressFromURL(link),
-			PubDate:     parsePubDateKakao(raw.DateTime),
+			PubDate:     published.PubDate,
+			PublishedAt: published.PublishedAt,
+			RawPubDate:  published.RawPubDate,
 		})
 	}
 
@@ -269,12 +281,15 @@ func (s *Service) fetchNewsAPIProvider(query string, pageSize, page int, minDate
 
 	items := make([]NewsItem, 0, len(payload.Articles))
 	for _, raw := range payload.Articles {
+		published := parsePubDateISO(raw.PublishedAt)
 		items = append(items, NewsItem{
 			Title:       strings.TrimSpace(raw.Title),
 			Link:        strings.TrimSpace(raw.URL),
 			Description: strings.TrimSpace(raw.Description),
 			Press:       strings.TrimSpace(raw.Source.Name),
-			PubDate:     parsePubDateISO(raw.PublishedAt),
+			PubDate:     published.PubDate,
+			PublishedAt: published.PublishedAt,
+			RawPubDate:  published.RawPubDate,
 		})
 	}
 
@@ -342,7 +357,7 @@ func (s *Service) FetchNewsAPI(source, query string, maxResults int, minDate str
 		}
 
 		for _, it := range result.Items {
-			if isValidDate(it.PubDate, minDate) {
+			if isValidDate(it, minDate) {
 				allItems = append(allItems, it)
 			}
 		}
@@ -377,34 +392,51 @@ func stripHTML(text string) string {
 	return strings.TrimSpace(htmlTagRe.ReplaceAllString(text, ""))
 }
 
-func parsePubDateNaver(pubDate string) string {
-	if strings.TrimSpace(pubDate) == "" {
-		return ""
+func parsePubDateNaver(pubDate string) normalizedPublishedTime {
+	raw := strings.TrimSpace(pubDate)
+	if raw == "" {
+		return normalizedPublishedTime{}
 	}
-	dt, err := mail.ParseDate(pubDate)
+	dt, err := mail.ParseDate(raw)
 	if err != nil {
-		return pubDate
+		return normalizedPublishedTime{
+			PubDate:    extractDateOnly(raw),
+			RawPubDate: raw,
+		}
 	}
-	return dt.Format("2006-01-02")
+	return normalizePublishedTime(dt, raw)
 }
 
-func parsePubDateKakao(dt string) string {
-	m := pubDateRe.FindStringSubmatch(dt)
-	if len(m) == 4 {
-		return fmt.Sprintf("%s-%s-%s", m[1], m[2], m[3])
+func parsePubDateKakao(dt string) normalizedPublishedTime {
+	raw := strings.TrimSpace(dt)
+	if raw == "" {
+		return normalizedPublishedTime{}
 	}
-	return dt
+	for _, layout := range []string{time.RFC3339, "2006-01-02T15:04:05.000-07:00", "2006-01-02T15:04:05-07:00"} {
+		parsed, err := time.Parse(layout, raw)
+		if err == nil {
+			return normalizePublishedTime(parsed, raw)
+		}
+	}
+	return normalizedPublishedTime{
+		PubDate:    extractDateOnly(raw),
+		RawPubDate: raw,
+	}
 }
 
-func parsePubDateISO(dt string) string {
-	if strings.TrimSpace(dt) == "" {
-		return ""
+func parsePubDateISO(dt string) normalizedPublishedTime {
+	raw := strings.TrimSpace(dt)
+	if raw == "" {
+		return normalizedPublishedTime{}
 	}
-	parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(dt))
+	parsed, err := time.Parse(time.RFC3339, raw)
 	if err != nil {
-		return dt
+		return normalizedPublishedTime{
+			PubDate:    extractDateOnly(raw),
+			RawPubDate: raw,
+		}
 	}
-	return parsed.Format("2006-01-02")
+	return normalizePublishedTime(parsed, raw)
 }
 
 func extractPressFromURL(rawURL string) string {
@@ -415,9 +447,38 @@ func extractPressFromURL(rawURL string) string {
 	return ""
 }
 
-func isValidDate(pubDate, minDate string) bool {
+func isValidDate(item NewsItem, minDate string) bool {
+	pubDate := strings.TrimSpace(item.PubDate)
+	if len(pubDate) < 10 {
+		pubDate = extractDateOnly(item.PublishedAt)
+	}
 	if len(pubDate) < 10 {
 		return false
 	}
 	return pubDate >= minDate
+}
+
+func normalizePublishedTime(parsed time.Time, raw string) normalizedPublishedTime {
+	loc := seoulLocation()
+	inSeoul := parsed.In(loc)
+	return normalizedPublishedTime{
+		PubDate:     inSeoul.Format("2006-01-02"),
+		PublishedAt: inSeoul.Format(time.RFC3339),
+		RawPubDate:  strings.TrimSpace(raw),
+	}
+}
+
+func extractDateOnly(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	m := pubDateRe.FindStringSubmatch(trimmed)
+	if len(m) == 4 {
+		return fmt.Sprintf("%s-%s-%s", m[1], m[2], m[3])
+	}
+	if parsed, err := time.ParseInLocation("2006-01-02", trimmed, seoulLocation()); err == nil {
+		return parsed.Format("2006-01-02")
+	}
+	return ""
 }

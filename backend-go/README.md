@@ -34,6 +34,37 @@
 - `GET /api/news/items`
 - `POST /api/dart/export/financials`
 
+## LSTM-Assisted Quant Ranking
+
+`/api/quant/rank` and `/api/quant/report` can optionally blend a precomputed LSTM prediction file into the existing next-day focused score. The integration is conservative by design:
+
+- If the prediction file is missing, ranking stays identical to the existing multifactor model.
+- If a prediction exists for a stock with the same `code` and `as_of`, the backend computes an `lstm_score` and blends it into `total_score`.
+- The model now targets `pred_return_1d` and next-day `prob_up` first, while `pred_return_5d` / `pred_return_20d` stay as auxiliary context.
+- The API response includes metadata such as `lstm_enabled`, `lstm_model_version`, `lstm_weight`, and per-item fields like `next_day_score`, `lstm_score`, `lstm_pred_return_1d`, `lstm_pred_return_5d`, `lstm_pred_return_20d`, `lstm_prob_up`, `lstm_confidence`.
+
+Generate the prediction file from the project root:
+
+```bash
+bash lstm/run_batch_export.sh
+```
+
+On the first run, the script automatically:
+
+- installs Python 3.12 with Homebrew if needed
+- creates `lstm/venv`
+- installs packages from `lstm/requirements.txt`
+
+The default export path is `backend-go/data/quant/lstm_predictions_latest.json`.
+
+Optional tuning example:
+
+```bash
+bash lstm/run_batch_export.sh \
+  --min-market-cap 1000000000000 \
+  --epochs 12
+```
+
 ## Large-Cap Financial CSV Export
 
 코스피/코스닥 시총 1조 이상 기업을 KRX API에서 조회한 뒤, 기업별로 `최근 연간(11011)` + `최근 분기(11013/11012/11014 중 최신)` 재무제표를 DART XBRL에서 찾아 단일 CSV로 저장합니다.
@@ -77,6 +108,7 @@ go run ./cmd/backend
 - 기본: `backend-go/data`
 - 뉴스: `backend-go/data/news`
 - 텔레그램 CSV: `backend-go/data/telegram_chats`
+- LSTM 예측 파일: `backend-go/data/quant/lstm_predictions_latest.json`
 - KRX 진행 상태: `backend-go/data/krx_collect_progress.json`
 - KRX 단일/부분 API 수집 시 진행 상태: `backend-go/data/krx_collect_progress__<api_id...>.json`
 - DART 대상 기업 스냅샷: `backend-go/data/dart/targets_latest.csv`
@@ -111,6 +143,8 @@ go run ./cmd/backend
 - `NEWS_GO_PORT` (기본 `5002`)
 - `NEWS_GO_DIR` (기본 자동 탐색)
 - `NEWS_DATA_ROOT_DIR` (기본 `<backend-go>/data`)
+- `LSTM_PREDICTIONS_FILE` (기본 `<backend-go>/data/quant/lstm_predictions_latest.json`)
+- `LSTM_WEIGHT` (기본 `0.12`, 최대 `0.35`)
 - `KRX_API_KEY` 또는 `KRX_OPENAPI_KEY`
 - `DART_FSS_API_KEY`
 - `DART_API_BASE_URL` (옵션, 기본 `https://opendart.fss.or.kr/api`)

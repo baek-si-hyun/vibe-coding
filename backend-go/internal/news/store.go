@@ -10,31 +10,17 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
 
 var numberEntityRe = regexp.MustCompile(`&#\d+;`)
 
-var csvFields = []string{"title", "link", "description", "pubDate", "keyword"}
+var csvFields = []string{"title", "link", "description", "pubDate", "publishedAt", "rawPubDate", "qualityTier", "qualityScore", "qualityFlags", "keyword", "press"}
 
 func (s *Service) ensureOutputFile() error {
-	if err := os.MkdirAll(s.cfg.DataDir, 0o755); err != nil {
-		return err
-	}
-	path := s.mergedPath()
-	if _, err := os.Stat(path); err == nil {
-		return nil
-	}
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	w := csv.NewWriter(f)
-	defer w.Flush()
-	return w.Write(csvFields)
+	return s.ensureCSVSchema()
 }
 
 func (s *Service) loadKeywordsFromFile() []string {
@@ -55,48 +41,16 @@ func (s *Service) loadKeywordsFromFile() []string {
 	return payload.Keywords
 }
 
-func (s *Service) loadExistingLinks() map[string]struct{} {
-	links := map[string]struct{}{}
-	path := s.mergedPath()
-	f, err := os.Open(path)
-	if err != nil {
-		return links
-	}
-	defer f.Close()
-
-	r := csv.NewReader(f)
-	header, err := r.Read()
-	if err != nil {
-		return links
-	}
-	linkIdx := -1
-	for i, h := range header {
-		if strings.TrimSpace(h) == "link" {
-			linkIdx = i
-			break
-		}
-	}
-	if linkIdx < 0 {
-		return links
-	}
-
-	for {
-		row, rowErr := r.Read()
-		if errors.Is(rowErr, io.EOF) {
-			break
-		}
-		if rowErr != nil {
+func (s *Service) loadExistingNewsIndex() map[string]NewsItem {
+	index := map[string]NewsItem{}
+	for _, item := range s.readCSVItems(s.mergedPath()) {
+		link := strings.TrimSpace(item.Link)
+		if link == "" {
 			continue
 		}
-		if linkIdx >= len(row) {
-			continue
-		}
-		link := strings.TrimSpace(row[linkIdx])
-		if link != "" {
-			links[link] = struct{}{}
-		}
+		index[link] = item
 	}
-	return links
+	return index
 }
 
 func cleanText(text string) string {
@@ -116,37 +70,47 @@ func (s *Service) appendRows(rows []NewsItem) (int, error) {
 		return 0, err
 	}
 	path := s.mergedPath()
-	_, statErr := os.Stat(path)
-	fileExists := statErr == nil
-
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
-	if err != nil {
+	if err := s.ensureCSVSchema(); err != nil {
 		return 0, err
 	}
-	defer f.Close()
 
-	w := csv.NewWriter(f)
-	defer w.Flush()
-	if !fileExists {
-		if err := w.Write(csvFields); err != nil {
-			return 0, err
-		}
-	}
-	count := 0
-	for _, r := range rows {
-		record := []string{
-			cleanText(r.Title),
-			strings.TrimSpace(r.Link),
-			cleanText(r.Description),
-			strings.TrimSpace(r.PubDate),
-			strings.TrimSpace(r.Keyword),
-		}
-		if err := w.Write(record); err != nil {
+	existing := s.readCSVItems(path)
+	index := make(map[string]int, len(existing))
+	for i, item := range existing {
+		link := strings.TrimSpace(item.Link)
+		if link == "" {
 			continue
 		}
-		count++
+		index[link] = i
 	}
-	return count, nil
+
+	changes := 0
+	for _, raw := range rows {
+		item := normalizeNewsItem(raw)
+		link := strings.TrimSpace(item.Link)
+		if link == "" {
+			continue
+		}
+		if existingIndex, ok := index[link]; ok {
+			merged := mergeStoredNewsItems(existing[existingIndex], item)
+			if !newsItemsEqual(existing[existingIndex], merged) {
+				existing[existingIndex] = merged
+				changes++
+			}
+			continue
+		}
+		existing = append(existing, item)
+		index[link] = len(existing) - 1
+		changes++
+	}
+
+	if changes == 0 {
+		return 0, nil
+	}
+	if err := writeNewsCSV(path, existing); err != nil {
+		return 0, err
+	}
+	return changes, nil
 }
 
 func (s *Service) loadProgress(source string) CrawlProgress {
@@ -192,6 +156,15 @@ func (s *Service) saveProgress(source string, completedKeywords []string, totalS
 }
 
 func (s *Service) readCSVItems(path string) []NewsItem {
+	rawItems := s.readCSVItemsRaw(path)
+	items := make([]NewsItem, 0, len(rawItems))
+	for _, item := range rawItems {
+		items = append(items, normalizeNewsItem(item))
+	}
+	return items
+}
+
+func (s *Service) readCSVItemsRaw(path string) []NewsItem {
 	items := []NewsItem{}
 	f, err := os.Open(path)
 	if err != nil {
@@ -206,7 +179,7 @@ func (s *Service) readCSVItems(path string) []NewsItem {
 	}
 	index := map[string]int{}
 	for i, h := range header {
-		index[h] = i
+		index[strings.TrimSpace(strings.TrimPrefix(h, "\ufeff"))] = i
 	}
 
 	for {
@@ -225,11 +198,17 @@ func (s *Service) readCSVItems(path string) []NewsItem {
 			return row[i]
 		}
 		items = append(items, NewsItem{
-			Title:       get("title"),
-			Link:        get("link"),
-			Description: get("description"),
-			PubDate:     get("pubDate"),
-			Keyword:     get("keyword"),
+			Title:        get("title"),
+			Link:         get("link"),
+			Description:  get("description"),
+			PubDate:      get("pubDate"),
+			PublishedAt:  get("publishedAt"),
+			RawPubDate:   get("rawPubDate"),
+			QualityTier:  get("qualityTier"),
+			QualityScore: parseQualityScore(get("qualityScore")),
+			QualityFlags: get("qualityFlags"),
+			Keyword:      get("keyword"),
+			Press:        get("press"),
 		})
 	}
 	return items
@@ -320,7 +299,15 @@ func (s *Service) readSavedNews(filename string) []NewsItem {
 	if path == "" {
 		return []NewsItem{}
 	}
-	return s.readCSVItems(path)
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return []NewsItem{}
+	}
+	items, err := s.loadSavedNewsCached(path, info.ModTime())
+	if err != nil {
+		return []NewsItem{}
+	}
+	return items
 }
 
 func (s *Service) readSavedNewsPaginated(page, limit int, q, filename string) map[string]any {
@@ -342,21 +329,39 @@ func (s *Service) readSavedNewsPaginated(page, limit int, q, filename string) ma
 	}
 
 	qLower := strings.ToLower(strings.TrimSpace(q))
-	all := s.readCSVItems(path)
-	filtered := make([]NewsItem, 0, len(all))
-	for _, it := range all {
-		if qLower != "" {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return map[string]any{
+			"items":   []NewsItem{},
+			"total":   0,
+			"page":    page,
+			"limit":   limit,
+			"hasMore": false,
+		}
+	}
+
+	var filtered []NewsItem
+	if qLower == "" {
+		filtered, err = s.loadSavedNewsSortedCached(path, info.ModTime())
+		if err != nil {
+			filtered = []NewsItem{}
+		}
+	} else {
+		all, cacheErr := s.loadSavedNewsCached(path, info.ModTime())
+		if cacheErr != nil {
+			all = []NewsItem{}
+		}
+		filtered = make([]NewsItem, 0, len(all))
+		for _, it := range all {
 			title := strings.ToLower(it.Title)
 			desc := strings.ToLower(it.Description)
 			if !strings.Contains(title, qLower) && !strings.Contains(desc, qLower) {
 				continue
 			}
+			filtered = append(filtered, it)
 		}
-		filtered = append(filtered, it)
+		filtered = sortNewsItemsByRecency(filtered)
 	}
-	sort.Slice(filtered, func(i, j int) bool {
-		return filtered[i].PubDate > filtered[j].PubDate
-	})
 
 	start := (page - 1) * limit
 	end := start + limit
@@ -375,4 +380,152 @@ func (s *Service) readSavedNewsPaginated(page, limit int, q, filename string) ma
 		"limit":   limit,
 		"hasMore": len(filtered) > end,
 	}
+}
+
+func (s *Service) ensureCSVSchema() error {
+	if err := os.MkdirAll(s.cfg.DataDir, 0o755); err != nil {
+		return err
+	}
+	path := s.mergedPath()
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			return writeNewsCSV(path, nil)
+		}
+		return err
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	reader := csv.NewReader(f)
+	header, readErr := reader.Read()
+	_ = f.Close()
+	if readErr != nil && !errors.Is(readErr, io.EOF) {
+		return readErr
+	}
+	rawItems := s.readCSVItemsRaw(path)
+	if sameCSVHeader(header, csvFields) {
+		return nil
+	}
+	return writeNewsCSV(path, rawItems)
+}
+
+func writeNewsCSV(path string, rows []NewsItem) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+	defer w.Flush()
+	if err := w.Write(csvFields); err != nil {
+		return err
+	}
+	for _, raw := range rows {
+		item := normalizeNewsItem(raw)
+		record := []string{
+			cleanText(item.Title),
+			strings.TrimSpace(item.Link),
+			cleanText(item.Description),
+			strings.TrimSpace(item.PubDate),
+			strings.TrimSpace(item.PublishedAt),
+			strings.TrimSpace(item.RawPubDate),
+			strings.TrimSpace(item.QualityTier),
+			strconv.Itoa(item.QualityScore),
+			strings.TrimSpace(item.QualityFlags),
+			strings.TrimSpace(item.Keyword),
+			strings.TrimSpace(item.Press),
+		}
+		if err := w.Write(record); err != nil {
+			return err
+		}
+	}
+	return w.Error()
+}
+
+func sameCSVHeader(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if strings.TrimSpace(strings.TrimPrefix(left[i], "\ufeff")) != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func normalizeNewsItem(item NewsItem) NewsItem {
+	return enrichNewsQuality(item)
+}
+
+func mergeStoredNewsItems(existing NewsItem, incoming NewsItem) NewsItem {
+	base := normalizeNewsItem(existing)
+	candidate := normalizeNewsItem(incoming)
+
+	if candidate.Title != "" {
+		base.Title = candidate.Title
+	}
+	if candidate.Description != "" {
+		base.Description = candidate.Description
+	}
+	if candidate.Keyword != "" {
+		base.Keyword = candidate.Keyword
+	}
+	if candidate.Press != "" {
+		base.Press = candidate.Press
+	}
+	if candidate.PublishedAt != "" && betterPublishedAt(base.PublishedAt, candidate.PublishedAt) {
+		base.PublishedAt = candidate.PublishedAt
+	}
+	if candidate.RawPubDate != "" && (base.RawPubDate == "" || hasDatetimePrecision(candidate.RawPubDate) && !hasDatetimePrecision(base.RawPubDate)) {
+		base.RawPubDate = candidate.RawPubDate
+	}
+	if candidate.PubDate != "" {
+		base.PubDate = candidate.PubDate
+	}
+	return base
+}
+
+func betterPublishedAt(existing string, candidate string) bool {
+	existing = strings.TrimSpace(existing)
+	candidate = strings.TrimSpace(candidate)
+	if candidate == "" {
+		return false
+	}
+	if existing == "" {
+		return true
+	}
+	if hasDatetimePrecision(candidate) && !hasDatetimePrecision(existing) {
+		return true
+	}
+	return false
+}
+
+func newsItemsEqual(left NewsItem, right NewsItem) bool {
+	a := normalizeNewsItem(left)
+	b := normalizeNewsItem(right)
+	return a.Title == b.Title &&
+		a.Link == b.Link &&
+		a.Description == b.Description &&
+		a.PubDate == b.PubDate &&
+		a.PublishedAt == b.PublishedAt &&
+		a.RawPubDate == b.RawPubDate &&
+		a.Keyword == b.Keyword &&
+		a.Press == b.Press
+}
+
+func hasDatetimePrecision(raw string) bool {
+	value := strings.TrimSpace(raw)
+	return strings.Contains(value, "T") || strings.Contains(value, ":")
+}
+
+func newsSortKey(item NewsItem) string {
+	normalized := normalizeNewsItem(item)
+	if normalized.PublishedAt != "" {
+		return normalized.PublishedAt
+	}
+	return normalized.PubDate
 }

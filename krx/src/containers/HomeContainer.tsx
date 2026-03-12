@@ -3,41 +3,68 @@
 import { useEffect, useMemo, useState } from "react";
 import type { TabType } from "@/types";
 import AppHeader from "@/components/AppHeader";
-import BithumbPage from "@/components/pages/BithumbPage";
+import CoinQuantPage from "@/components/pages/CoinQuantPage";
 import TelegramPage from "@/components/pages/TelegramPage";
 import NewsPage from "@/components/pages/NewsPage";
 import QuantPage from "@/components/pages/QuantPage";
 import KrxCollectPage from "@/components/pages/KrxCollectPage";
 import DartCollectPage from "@/components/pages/DartCollectPage";
 import { UI_LABELS } from "@/constants/ui";
+import {
+  useCoinQuantStore,
+  type CoinQuantScreenKey,
+} from "@/stores/coinQuantStore";
 
 type EndpointMap = Record<string, { name?: string; url?: string }>;
 
 const BASE_TABS: Array<{ id: TabType; label: string }> = [
-  { id: "BITHUMB", label: UI_LABELS.TABS.BITHUMB },
+  { id: "COIN", label: UI_LABELS.TABS.COIN },
   { id: "TELEGRAM", label: UI_LABELS.TABS.TELEGRAM },
   { id: "NEWS", label: UI_LABELS.TABS.NEWS },
   { id: "QUANT", label: UI_LABELS.TABS.QUANT },
   { id: "DART", label: UI_LABELS.TABS.DART },
 ];
 
-function initialTabFromQuery(): TabType {
-  if (typeof window === "undefined") return "BITHUMB";
-  const queryTab = new URLSearchParams(window.location.search).get("tab")?.trim().toUpperCase();
-  const allowed = new Set<TabType>(["BITHUMB", "TELEGRAM", "NEWS", "QUANT", "DART"]);
-  if (queryTab && allowed.has(queryTab as TabType)) {
-    return queryTab as TabType;
+const QUERY_TABS = new Set<TabType>(["COIN", "TELEGRAM", "NEWS", "QUANT", "DART"]);
+
+function readTabStateFromQuery(search: string): {
+  tab: TabType;
+  exchange: CoinQuantScreenKey;
+} {
+  const params = new URLSearchParams(search);
+  const queryTab = params.get("tab")?.trim().toUpperCase();
+  const queryExchange = params.get("exchange")?.trim().toUpperCase();
+
+  if (queryTab === "UPBIT") {
+    return { tab: "COIN", exchange: "upbit" };
   }
-  return "BITHUMB";
+  if (queryTab === "BITHUMB") {
+    return { tab: "COIN", exchange: "bithumb" };
+  }
+  if (queryTab === "COIN") {
+    return {
+      tab: "COIN",
+      exchange: queryExchange === "UPBIT" ? "upbit" : "bithumb",
+    };
+  }
+  if (queryTab && QUERY_TABS.has(queryTab as TabType)) {
+    return { tab: queryTab as TabType, exchange: "bithumb" };
+  }
+  return {
+    tab: "COIN",
+    exchange: queryExchange === "UPBIT" ? "upbit" : "bithumb",
+  };
 }
 
 export default function HomeContainer() {
-  const [activeTab, setActiveTab] = useState<TabType>(() => initialTabFromQuery());
+  const [activeTab, setActiveTab] = useState<TabType>("COIN");
   const [krxTabs, setKrxTabs] = useState<Array<{ id: TabType; label: string }>>([]);
   const [openedKrxAPIIDs, setOpenedKrxAPIIDs] = useState<string[]>([]);
+  const activeExchange = useCoinQuantStore((state) => state.activeExchange);
+  const setActiveExchange = useCoinQuantStore((state) => state.setActiveExchange);
   const tabs = useMemo(() => [...BASE_TABS, ...krxTabs], [krxTabs]);
   const validTabIDs = useMemo(() => new Set(tabs.map((tab) => tab.id)), [tabs]);
-  const resolvedActiveTab = validTabIDs.has(activeTab) ? activeTab : "BITHUMB";
+  const resolvedActiveTab = validTabIDs.has(activeTab) ? activeTab : "COIN";
   const isKrxTab = resolvedActiveTab.startsWith("KRX_API:");
   const activeKrxAPIID = isKrxTab ? resolvedActiveTab.replace("KRX_API:", "") : "";
   const validKrxIDs = useMemo(
@@ -56,6 +83,21 @@ export default function HomeContainer() {
 
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
+    if (typeof window !== "undefined" && QUERY_TABS.has(tab)) {
+      const url = new URL(window.location.href);
+      if (tab === "COIN") {
+        url.searchParams.delete("tab");
+        if (activeExchange === "upbit") {
+          url.searchParams.set("exchange", "UPBIT");
+        } else {
+          url.searchParams.delete("exchange");
+        }
+      } else {
+        url.searchParams.set("tab", tab);
+        url.searchParams.delete("exchange");
+      }
+      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    }
     if (tab.startsWith("KRX_API:")) {
       const apiID = tab.replace("KRX_API:", "");
       setOpenedKrxAPIIDs((prev) => {
@@ -64,6 +106,39 @@ export default function HomeContainer() {
       });
     }
   };
+
+  useEffect(() => {
+    const syncTabFromURL = () => {
+      const next = readTabStateFromQuery(window.location.search);
+      setActiveTab(next.tab);
+      setActiveExchange(next.exchange);
+    };
+
+    syncTabFromURL();
+    window.addEventListener("popstate", syncTabFromURL);
+
+    return () => {
+      window.removeEventListener("popstate", syncTabFromURL);
+    };
+  }, [setActiveExchange]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || resolvedActiveTab !== "COIN") {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    const currentTab = url.searchParams.get("tab")?.trim().toUpperCase();
+    if (currentTab === "UPBIT" || currentTab === "BITHUMB" || currentTab === "COIN") {
+      url.searchParams.delete("tab");
+    }
+    if (activeExchange === "upbit") {
+      url.searchParams.set("exchange", "UPBIT");
+    } else {
+      url.searchParams.delete("exchange");
+    }
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [activeExchange, resolvedActiveTab]);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,8 +175,8 @@ export default function HomeContainer() {
 
   const renderContent = () => {
     switch (resolvedActiveTab) {
-      case "BITHUMB":
-        return <BithumbPage />;
+      case "COIN":
+        return <CoinQuantPage />;
       case "TELEGRAM":
         return <TelegramPage />;
       case "NEWS":

@@ -17,8 +17,8 @@ type keywordFetchResult struct {
 	err         error
 }
 
-func (s *Service) fetchTask(task crawlTask, source string, maxResults, maxPages int) keywordFetchResult {
-	result := s.FetchNewsAPI(source, task.Query, maxResults, defaultMinDate, maxPages)
+func (s *Service) fetchTask(task crawlTask, source string, maxResults int, minDate string, maxPages int) keywordFetchResult {
+	result := s.FetchNewsAPI(source, task.Query, maxResults, minDate, maxPages)
 	if result.Error != "" && len(result.Items) == 0 && !result.RateLimited {
 		return keywordFetchResult{
 			task: task,
@@ -86,11 +86,7 @@ func (s *Service) runCrawlAPI(
 		}
 	}
 
-	existing := s.loadExistingLinks()
-	seen := make(map[string]struct{}, len(existing))
-	for link := range existing {
-		seen[link] = struct{}{}
-	}
+	seen := s.loadExistingNewsIndex()
 
 	if workers < 1 {
 		workers = 1
@@ -127,7 +123,7 @@ func (s *Service) runCrawlAPI(
 					if !ok {
 						return
 					}
-					res := s.fetchTask(task, source, 999999, maxPages)
+					res := s.fetchTask(task, source, 999999, defaultMinDate, maxPages)
 					select {
 					case results <- res:
 					case <-ctx.Done():
@@ -165,16 +161,24 @@ func (s *Service) runCrawlAPI(
 		if res.rateLimited {
 			rateLimitedHit = true
 			for _, it := range res.items {
+				it = normalizeNewsItem(it)
 				link := strings.TrimSpace(it.Link)
 				if link == "" {
 					continue
 				}
-				if _, exists := seen[link]; exists {
-					continue
+				if existingItem, exists := seen[link]; exists {
+					merged := mergeStoredNewsItems(existingItem, it)
+					if newsItemsEqual(existingItem, merged) {
+						continue
+					}
+					seen[link] = merged
+					it = merged
+				} else {
+					seen[link] = it
 				}
-				seen[link] = struct{}{}
 				if strings.TrimSpace(it.Keyword) == "" {
 					it.Keyword = assignMatchedKeywords(it, res.task.Keywords)
+					seen[link] = mergeStoredNewsItems(seen[link], it)
 				}
 				batch = append(batch, it)
 			}
@@ -189,16 +193,24 @@ func (s *Service) runCrawlAPI(
 
 		completedKeywords = append(completedKeywords, res.task.ID)
 		for _, it := range res.items {
+			it = normalizeNewsItem(it)
 			link := strings.TrimSpace(it.Link)
 			if link == "" {
 				continue
 			}
-			if _, exists := seen[link]; exists {
-				continue
+			if existingItem, exists := seen[link]; exists {
+				merged := mergeStoredNewsItems(existingItem, it)
+				if newsItemsEqual(existingItem, merged) {
+					continue
+				}
+				seen[link] = merged
+				it = merged
+			} else {
+				seen[link] = it
 			}
-			seen[link] = struct{}{}
 			if strings.TrimSpace(it.Keyword) == "" {
 				it.Keyword = assignMatchedKeywords(it, res.task.Keywords)
+				seen[link] = mergeStoredNewsItems(seen[link], it)
 			}
 			batch = append(batch, it)
 			if len(batch) >= checkpointEvery {
@@ -234,8 +246,9 @@ func (s *Service) runCrawlAPI(
 
 func (s *Service) CrawlAPIResume(sources []string, reset bool) map[string]any {
 	if len(sources) == 0 {
-		sources = []string{"daum", "naver", "newsapi"}
+		sources = []string{"daum", "naver"}
 	}
+	sources = normalizeSources(sources)
 
 	keywords, err := s.loadKeywords()
 	if err != nil {
@@ -250,12 +263,19 @@ func (s *Service) CrawlAPIResume(sources []string, reset bool) map[string]any {
 	skipped := make([]map[string]any, 0)
 	rateLimited := false
 	errorsList := make([]string, 0)
+	rotationKey := time.Now().In(seoulLocation()).Format("20060102")
+	assignments := buildSourceKeywordAssignments(sources, keywords, rotationKey, s.cfg.NewsSourceKeywordCap)
 
 	for _, source := range sources {
-		if source != "naver" && source != "daum" && source != "newsapi" {
+		assignedKeywords := assignments[source]
+		if len(assignedKeywords) == 0 {
+			skipped = append(skipped, map[string]any{
+				"source": source,
+				"reason": "할당된 키워드 없음",
+			})
 			continue
 		}
-		r := s.runCrawlAPI(source, keywords, 6, reset, 0, 0, 100)
+		r := s.runCrawlAPI(source, assignedKeywords, 6, reset, 0, 0, 100)
 		if r.Error != "" {
 			errorsList = append(errorsList, fmt.Sprintf("%s: %s", source, r.Error))
 			skipped = append(skipped, map[string]any{
@@ -270,6 +290,7 @@ func (s *Service) CrawlAPIResume(sources []string, reset bool) map[string]any {
 
 		results = append(results, map[string]any{
 			"source":         source,
+			"keyword_count":  len(assignedKeywords),
 			"total_saved":    r.TotalSaved,
 			"added_this_run": r.AddedThisRun,
 			"rate_limited":   r.RateLimited,
@@ -290,10 +311,11 @@ func (s *Service) CrawlAPIResume(sources []string, reset bool) map[string]any {
 	sourceResults := make([]map[string]any, 0, len(results)+len(skipped))
 	for _, r := range results {
 		sourceResults = append(sourceResults, map[string]any{
-			"source":       r["source"],
-			"added":        r["added_this_run"],
-			"total":        r["total_saved"],
-			"rate_limited": r["rate_limited"],
+			"source":        r["source"],
+			"keyword_count": r["keyword_count"],
+			"added":         r["added_this_run"],
+			"total":         r["total_saved"],
+			"rate_limited":  r["rate_limited"],
 		})
 	}
 	for _, sk := range skipped {
@@ -336,6 +358,7 @@ func (s *Service) CrawlAPIResume(sources []string, reset bool) map[string]any {
 		"total":          len(items),
 		"added":          addedTotal,
 		"keyword_count":  len(keywords),
+		"keyword_cap":    s.cfg.NewsSourceKeywordCap,
 		"keyword_scope":  "KOSPI/KOSDAQ 시총 1조 이상 종목명",
 		"rate_limited":   rateLimited,
 		"message":        msg,
